@@ -37,7 +37,27 @@
         .mini-timeline-slupek { width: 0.4rem; height: 0.3rem; background: var(--bs-border-color); }
         .mini-timeline-slupek.aktywny { height: 100%; background: var(--bs-primary); }
         .payload { max-height: 24rem; overflow: auto; font-size: 0.8rem; }
-        .navbar .form-control { min-width: 10rem; }
+        .navbar .form-control { width: 10rem; min-width: 7rem; }
+        .mcs-nav-akcje .input-group { flex-wrap: nowrap; width: auto; }
+        #mcsNavbar .btn { white-space: nowrap; }
+        @media (min-width: 992px) {
+            .navbar > .container-fluid { flex-wrap: nowrap; }
+            #mcsNavbar { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; }
+            #mcsNavbar .navbar-nav { flex-wrap: nowrap; flex-shrink: 0; }
+            .mcs-nav-akcje,
+            .mcs-nav-konto { flex-wrap: nowrap; }
+            #mcsNavbar .nav-link { padding-inline: 0.5rem; white-space: nowrap; }
+            .mcs-nav-akcje { flex: 0 1 auto; min-width: 0; }
+            .mcs-nav-akcje form,
+            .mcs-nav-akcje > .btn,
+            .mcs-nav-konto > form { flex: 0 0 auto; }
+            .mcs-nav-konto { min-width: 0; }
+            .mcs-nav-konto span {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
         .mcs-plugin-popover { max-width: 28rem; }
         .mcs-dzien-zrodla > summary { list-style: none; cursor: pointer; }
         .mcs-dzien-zrodla > summary::-webkit-details-marker { display: none; }
@@ -78,7 +98,7 @@ $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
 ?>
 
 <nav class="navbar navbar-expand-lg bg-body border-bottom shadow-sm sticky-top">
-    <div class="container">
+    <div class="container-fluid px-3 px-lg-4">
         <a class="navbar-brand fw-semibold" href="<?= site_url('/') ?>">
             <i class="bi bi-shield-lock-fill me-1 text-primary" aria-hidden="true"></i>
             MCS
@@ -161,7 +181,8 @@ $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
                 <?php endif; ?>
             </ul>
 
-            <form class="d-flex me-lg-2 mb-2 mb-lg-0" method="get" action="<?= site_url('szukaj') ?>" role="search">
+            <div class="mcs-nav-akcje d-flex align-items-center flex-wrap flex-lg-nowrap gap-2 ms-lg-2 mb-2 mb-lg-0">
+            <form class="d-flex m-0" method="get" action="<?= site_url('szukaj') ?>" role="search">
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
                     <input class="form-control font-monospace" type="search" name="ip" id="szukaj-ip"
@@ -173,14 +194,14 @@ $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
                 </div>
             </form>
 
-            <button type="button" class="btn btn-outline-secondary me-lg-2 mb-2 mb-lg-0" id="themeToggle"
+            <button type="button" class="btn btn-outline-secondary" id="themeToggle"
                     aria-label="Przełącz motyw jasny/ciemny" title="Motyw">
                 <i class="bi bi-moon-stars-fill" id="themeIcon" aria-hidden="true"></i>
             </button>
 
-            <div class="navbar-text small text-body-secondary d-flex flex-wrap align-items-center gap-1">
+            <div class="mcs-nav-konto navbar-text small text-body-secondary d-flex flex-nowrap align-items-center gap-2 m-0 p-0">
                 <?php if (! empty($email)): ?>
-                    <span class="me-1"><?= esc($email) ?><?php if ($rolaEtykieta !== ''): ?> · <?= esc($rolaEtykieta) ?><?php endif; ?></span>
+                    <span class="text-nowrap"><?= esc($email) ?><?php if ($rolaEtykieta !== ''): ?> · <?= esc($rolaEtykieta) ?><?php endif; ?></span>
                 <?php endif; ?>
                 <form method="post" action="<?= site_url('logout') ?>" class="d-inline m-0">
                     <?= csrf_field() ?>
@@ -188,6 +209,7 @@ $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
                         <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Wyloguj
                     </button>
                 </form>
+            </div>
             </div>
         </div>
     </div>
