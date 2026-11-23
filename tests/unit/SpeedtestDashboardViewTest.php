@@ -14,6 +14,7 @@ final class SpeedtestDashboardViewTest extends CIUnitTestCase
             'navAktywny' => 'speedtest',
             'email'      => 'op@example.com',
             'rola'       => 'operator',
+            'asAsn'      => 198050,
             'flashBlad'  => null,
             'flashOk'    => null,
             'filtry'     => [
@@ -129,6 +130,7 @@ final class SpeedtestDashboardViewTest extends CIUnitTestCase
             'navAktywny' => 'speedtest',
             'email'      => 'op@example.com',
             'rola'       => 'operator',
+            'asAsn'      => 198050,
             'flashBlad'  => null,
             'flashOk'    => null,
             'filtry'     => [
@@ -184,6 +186,7 @@ final class SpeedtestDashboardViewTest extends CIUnitTestCase
             'navAktywny' => 'speedtest',
             'email'      => 'op@example.com',
             'rola'       => 'operator',
+            'asAsn'      => 198050,
             'flashBlad'  => null,
             'flashOk'    => null,
             'filtry'     => [

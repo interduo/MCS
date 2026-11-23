@@ -13,6 +13,7 @@ $badgeWaga = static function (string $waga): string {
 };
 $listaTotal  = (int) ($listaTotal ?? 0);
 $pagerQuery  = ['okno', 'zrodlo', 'ip', 'waga', 'min_zrodel', 'kategoria', 'port', 'cidr', 'podsiec'];
+$asAsn       = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -32,7 +33,7 @@ $pagerQuery  = ['okno', 'zrodlo', 'ip', 'waga', 'min_zrodel', 'kategoria', 'port
         </span>
         <?php if (! empty($asMatchWlaczone)): ?>
             <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2">
-                AS198050
+                AS<?= $asAsn ?>
             </span>
         <?php endif; ?>
         <?php if (! empty($filtrCidrEfekt)): ?>
@@ -46,7 +47,7 @@ $pagerQuery  = ['okno', 'zrodlo', 'ip', 'waga', 'min_zrodel', 'kategoria', 'port
 <?php if (! empty($asMatchWlaczone)): ?>
     <div class="alert alert-primary border-0 shadow-sm rounded-3 py-2 mb-4" role="status">
         <i class="bi bi-funnel-fill me-1" aria-hidden="true"></i>
-        Matchowanie AS198050 jest włączone — lista obejmuje tylko IP z prefiksów CIDR w
+        Matchowanie AS<?= $asAsn ?> jest włączone — lista obejmuje tylko IP z prefiksów CIDR w
         <a href="<?= site_url('admin/ustawienia') ?>" class="alert-link">ustawieniach</a>.
     </div>
 <?php endif; ?>

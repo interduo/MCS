@@ -7,6 +7,7 @@ $wiersze = is_array($wiersze ?? null) ? $wiersze : [];
 $lista   = (string) ($lista ?? '');
 $cidr    = (string) ($cidr ?? '');
 $blad    = $blad ?? null;
+$asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -19,7 +20,7 @@ $blad    = $blad ?? null;
         </nav>
         <h1 class="h3 mb-1">DNSBL — spamerzy w AS</h1>
         <p class="text-body-secondary mb-0">
-            Skaner IPv4 AS198050 na listach DNSBL (lokalny resolver, tylko darmowe strefy).
+            Skaner IPv4 AS<?= $asAsn ?> na listach DNSBL (lokalny resolver, tylko darmowe strefy).
             Ręczny check Spamhaus:
             <a href="https://check.spamhaus.org/" target="_blank" rel="noopener noreferrer">check.spamhaus.org</a>
             (per IP w tabeli lub na karcie IP).

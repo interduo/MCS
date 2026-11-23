@@ -17,6 +17,7 @@ $trend     = is_array($sk['trend'] ?? null) ? $sk['trend'] : [];
 $trwa      = $skan !== null && in_array($skan['status'], ['oczekuje', 'w_toku'], true);
 $gotowy    = $skan !== null && $skan['status'] === 'zakonczony';
 $urlBaza   = site_url('dashboard/dnsbl');
+$asAsn     = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 $statusPl  = [
     'ok' => 'OK', 'wylaczona_test' => 'wyłączona (test kontrolny)', 'przerwana' => 'przerwana (kod błędu)',
     'oczekuje' => 'oczekuje', 'w_toku' => 'w toku', 'zakonczony' => 'zakończony', 'blad' => 'błąd',
@@ -38,7 +39,7 @@ $statusPl  = [
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-8">
-                <label class="form-label" for="dnsbl-zakres">IP albo CIDR (IPv4, /21–/32, tylko prefiksy AS198050)</label>
+                <label class="form-label" for="dnsbl-zakres">IP albo CIDR (IPv4, /21–/32, tylko prefiksy AS<?= $asAsn ?>)</label>
                 <input class="form-control font-monospace" id="dnsbl-zakres" type="text" name="zakres" required
                        pattern="[0-9./,; ]+" maxlength="400"
                        value="<?= esc((string) old('zakres', $skan['zakres'] ?? '')) ?>" placeholder="np. 91.231.70.0/23 albo 91.231.70.187">

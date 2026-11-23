@@ -88,10 +88,11 @@ class Ustawienia extends BaseController
         }
 
         $ile = count($lista);
+        $asn = As198050Matcher::asn();
         $czesci = [];
         $czesci[] = $wlaczone
-            ? "AS198050 włączone ({$ile} prefiks(ów))"
-            : "AS198050 wyłączone ({$ile} prefiks(ów) zachowanych)";
+            ? "AS{$asn} włączone ({$ile} prefiks(ów))"
+            : "AS{$asn} wyłączone ({$ile} prefiks(ów) zachowanych)";
         $czesci[] = $revDnsWlacz ? 'reverse DNS włączone' : 'reverse DNS wyłączone';
         $czesci[] = 'domyślne filtry przeglądu (okno ' . (int) $dash['okno'] . ' dni)';
 
@@ -122,7 +123,7 @@ class Ustawienia extends BaseController
 
         return redirect()->to('/admin/ustawienia')->with(
             'komunikat',
-            'Przywrócono domyślne prefiksy AS198050 (RIPE). Sprawdź listę i kliknij „Zapisz ustawienia”, jeśli zmieniasz też przełącznik.',
+            'Przywrócono domyślne prefiksy AS' . As198050Matcher::asn() . ' (RIPE). Sprawdź listę i kliknij „Zapisz ustawienia”, jeśli zmieniasz też przełącznik.',
         );
     }
 

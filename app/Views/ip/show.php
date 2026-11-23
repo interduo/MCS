@@ -11,6 +11,7 @@ $badgeWaga = static function (string $waga): string {
         default => 'text-bg-light text-dark border',
     };
 };
+$asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -39,11 +40,11 @@ $badgeWaga = static function (string $waga): string {
     <?php if (! empty($naszeIp)): ?>
         <div class="alert alert-success border-0 shadow-sm rounded-3 py-2 mb-4" role="status">
             <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
-            Adres należy do przestrzeni AS198050 (CIDR z <a href="<?= site_url('admin/ustawienia') ?>" class="alert-link">ustawień</a>).
+            Adres należy do przestrzeni AS<?= $asAsn ?> (CIDR z <a href="<?= site_url('admin/ustawienia') ?>" class="alert-link">ustawień</a>).
         </div>
     <?php else: ?>
         <p class="text-body-secondary small mb-4">
-            Poza AS198050 — brak trafienia w prefiksy CIDR
+            Poza AS<?= $asAsn ?> — brak trafienia w prefiksy CIDR
             (<a href="<?= site_url('admin/ustawienia') ?>">ustawienia</a>).
         </p>
     <?php endif; ?>
