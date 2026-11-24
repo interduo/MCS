@@ -324,7 +324,7 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
                                 || ($minUp > 0 && $upKbps >= $minUp * 1000);
                             ?>
                             <tr<?= ($wszystkie && $hot) ? ' class="table-warning"' : '' ?>>
-                                <td class="text-nowrap small"><?= esc((string) ($t['zaobserwowano_at'] ?? '—')) ?></td>
+                                <td class="text-nowrap small"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($t['zaobserwowano_at'] ?? ''), '—')) ?></td>
                                 <td class="font-monospace"><?= esc((string) ($t['cidr'] ?? '')) ?></td>
                                 <td class="text-end fw-semibold"><?= esc($mbps($t['download_kbps'] ?? null)) ?></td>
                                 <td class="text-end fw-semibold"><?= esc($mbps($t['upload_kbps'] ?? null)) ?></td>
@@ -388,7 +388,7 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
                                 <td class="text-end fw-semibold"><?= esc($mbps($p['max_upload_kbps'] ?? null)) ?></td>
                                 <td class="text-end"><?= esc($mbps($p['avg_upload_kbps'] ?? null)) ?></td>
                                 <td class="text-end"><?= esc($ratio($p['peak_upload_ratio'] ?? null)) ?></td>
-                                <td class="text-nowrap small"><?= esc((string) ($p['ostatni_test_at'] ?? '—')) ?></td>
+                                <td class="text-nowrap small"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($p['ostatni_test_at'] ?? ''), '—')) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -446,7 +446,7 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
                                 <td class="text-end"><?= esc($mbps($w['p50_upload_kbps'] ?? null)) ?></td>
                                 <td class="text-end"><?= esc($ratio($w['peak_upload_ratio'] ?? null)) ?></td>
                                 <td class="text-end"><?= esc($ms($w['avg_latency_ms'] ?? null)) ?></td>
-                                <td class="text-nowrap small"><?= esc((string) ($w['ostatni_test_at'] ?? '—')) ?></td>
+                                <td class="text-nowrap small"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($w['ostatni_test_at'] ?? ''), '—')) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

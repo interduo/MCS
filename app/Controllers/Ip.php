@@ -11,6 +11,7 @@ use App\Libraries\Enrichment\LmsMapowanieSerwis;
 use App\Libraries\Enrichment\SpamratsClient;
 use App\Libraries\Enrichment\SpamratsSerwis;
 use App\Libraries\Enrichment\SpeedtestSerwis;
+use App\Libraries\CzasUi;
 use App\Libraries\LimitForce;
 use App\Libraries\OpcjeMcs;
 use App\Libraries\ProblemyIp;
@@ -325,7 +326,7 @@ class Ip extends BaseController
                 'ip'      => $ip,
                 'z_cache' => true,
                 'tryb'    => 'cache',
-                'wynik'   => $cache,
+                'wynik'   => $this->czasyUi(is_array($cache) ? $cache : []),
             ]);
         }
 
@@ -360,7 +361,7 @@ class Ip extends BaseController
             'ip'      => $wynik['ip'],
             'z_cache' => $wynik['z_cache'],
             'tryb'    => $wynik['tryb'],
-            'wynik'   => $wynik['wynik'],
+            'wynik'   => $this->czasyUi(is_array($wynik['wynik'] ?? null) ? $wynik['wynik'] : []),
         ]);
     }
 
@@ -377,6 +378,31 @@ class Ip extends BaseController
     /**
      * Odpowiedź JSON z aktualnym tokenem CSRF w nagłówku (po POST token jest regenerowany).
      */
+    /**
+     * Znaczniki z bazy są w UTC. Odpowiedź panelu (nie API) pokazuje je w strefie aplikacji.
+     *
+     * @param array<string, mixed> $wynik
+     *
+     * @return array<string, mixed>
+     */
+    private function czasyUi(array $wynik): array
+    {
+        foreach ($wynik as $k => $v) {
+            if (! is_string($k) || ! is_string($v)) {
+                continue;
+            }
+            if (! str_ends_with($k, '_at') && $k !== 'last_reported_at') {
+                continue;
+            }
+            $fmt = CzasUi::pokaz($v);
+            if ($fmt !== '') {
+                $wynik[$k] = $fmt;
+            }
+        }
+
+        return $wynik;
+    }
+
     private function odpowiedzZCsrf(): \CodeIgniter\HTTP\ResponseInterface
     {
         return $this->response->setHeader('X-Mcs-Csrf', csrf_hash());

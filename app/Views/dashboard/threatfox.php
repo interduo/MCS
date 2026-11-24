@@ -14,7 +14,7 @@ $nastepne  = \App\Libraries\CzasUi::dataGodzina((string) ($stan['nastepne_po'] ?
 $bledy     = (int) ($stan['bledy_z_rzedu'] ?? 0);
 $rekordy   = (int) ($stan['rekordy'] ?? 0);
 $healthOk  = $d['health_ok'] ?? null;
-$healthMsg = (string) ($d['health_msg'] ?? '');
+$healthMsg = \App\Libraries\CzasUi::wTekscie((string) ($d['health_msg'] ?? ''));
 $fmtLiczba = static fn (int $n): string => number_format($n, 0, ',', "\u{00A0}");
 $podsumowanie = null;
 if (preg_match(
@@ -81,7 +81,7 @@ $aktywne   = array_values(array_filter($trafienia, static fn ($t) => \App\Models
                 <div class="text-body-secondary small mb-1">Następne pobranie</div>
                 <div class="fw-semibold"><?= $nastepne !== '' ? esc($nastepne) : 'przy najbliższym cronie' ?></div>
                 <?php if ($bledy > 0): ?>
-                    <div class="small text-danger">błędy z rzędu: <?= $bledy ?> — <?= esc((string) ($stan['ostatni_blad'] ?? '')) ?></div>
+                    <div class="small text-danger">błędy z rzędu: <?= $bledy ?> — <?= esc(\App\Libraries\CzasUi::wTekscie((string) ($stan['ostatni_blad'] ?? ''))) ?></div>
                 <?php endif; ?>
             </div>
         </div>
@@ -169,7 +169,7 @@ $aktywne   = array_values(array_filter($trafienia, static fn ($t) => \App\Models
                 <td class="ps-3 text-nowrap small"><?= esc(\App\Libraries\CzasUi::dataGodzina((string) ($h['at'] ?? ''))) ?></td>
                 <td><span class="badge <?= match ($z) { 'nowe' => 'text-bg-danger', 'zdjete' => 'text-bg-success', 'blad' => 'text-bg-warning', default => 'text-bg-secondary' } ?>"><?= esc($z) ?></span></td>
                 <td class="font-monospace small text-break"><?= esc((string) ($h['ioc'] ?? '')) ?></td>
-                <td class="pe-3 small text-break"><?= esc((string) ($h['opis'] ?? '')) ?></td>
+                <td class="pe-3 small text-break"><?= esc(\App\Libraries\CzasUi::wTekscie((string) ($h['opis'] ?? ''))) ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>

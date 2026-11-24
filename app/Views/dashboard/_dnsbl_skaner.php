@@ -70,7 +70,7 @@ $statusPl  = [
         $metaSkanu[] = ['Strefa', (string) $skan['strefa_filtr'], ''];
     }
     if (! empty($skan['koniec_at'])) {
-        $metaSkanu[] = ['Koniec', (string) $skan['koniec_at'], ''];
+        $metaSkanu[] = ['Koniec', \App\Libraries\CzasUi::pokaz((string) $skan['koniec_at']), ''];
     }
     if (! empty($skan['uzytkownik'])) {
         $metaSkanu[] = ['Zlecił', (string) $skan['uzytkownik'], ''];
@@ -320,11 +320,11 @@ $statusPl  = [
                         <rect x="<?= round($x, 1) ?>" y="0" width="<?= round($krok, 1) ?>" height="<?= $wys ?>" fill="transparent"/>
                         <rect x="<?= round($x, 1) ?>" y="<?= round($wys - $h, 1) ?>" width="<?= round($slup, 1) ?>" height="<?= round($h, 1) ?>" rx="2" fill="var(--bs-primary)">
                         </rect>
-                        <title>Skan #<?= $t['id'] ?> (<?= esc($t['tryb']) ?>) <?= esc($t['koniec_at']) ?>: <?= $t['listowane'] ?> listowanych IP</title>
+                        <title>Skan #<?= $t['id'] ?> (<?= esc($t['tryb']) ?>) <?= esc(\App\Libraries\CzasUi::pokaz((string) $t['koniec_at'])) ?>: <?= $t['listowane'] ?> listowanych IP</title>
                     </a>
                 <?php endforeach; ?>
-                <text x="0" y="<?= $wys + 14 ?>" font-size="11" fill="currentColor" fill-opacity=".6"><?= esc(substr((string) $trend[0]['koniec_at'], 0, 10)) ?></text>
-                <text x="<?= $szer ?>" y="<?= $wys + 14 ?>" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6"><?= esc(substr((string) $trend[$n - 1]['koniec_at'], 0, 10)) ?> · max <?= $maxT ?></text>
+                <text x="0" y="<?= $wys + 14 ?>" font-size="11" fill="currentColor" fill-opacity=".6"><?= esc(substr(\App\Libraries\CzasUi::pokaz((string) $trend[0]['koniec_at']), 0, 10)) ?></text>
+                <text x="<?= $szer ?>" y="<?= $wys + 14 ?>" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6"><?= esc(substr(\App\Libraries\CzasUi::pokaz((string) $trend[$n - 1]['koniec_at']), 0, 10)) ?> · max <?= $maxT ?></text>
             </svg>
         </div>
     </div>
@@ -346,7 +346,7 @@ $statusPl  = [
                         <td><?= (int) $o['listowane'] ?></td>
                         <td><?= (int) ($o['nowe'] ?? 0) ?>/<?= (int) ($o['zdjete'] ?? 0) ?></td>
                         <td><?= (int) $o['bledy'] ?></td>
-                        <td><?= esc((string) ($o['koniec_at'] ?? '—')) ?></td>
+                        <td><?= esc(\App\Libraries\CzasUi::pokaz((string) ($o['koniec_at'] ?? ''), '—')) ?></td>
                         <td><?= esc((string) $o['uzytkownik']) ?></td>
                     </tr>
                 <?php endforeach; ?>
