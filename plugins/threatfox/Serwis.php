@@ -2,6 +2,7 @@
 
 namespace McsPluginy\threatfox;
 
+use App\Libraries\BladUi;
 use App\Libraries\ImportKoperta;
 use App\Libraries\IncydentZapis;
 use App\Libraries\WagaV1;
@@ -181,22 +182,24 @@ class Serwis
                 'zdjete'    => $wynik['zdjete'],
             ];
         } catch (\Throwable $e) {
-            $bledy = (int) ($stan['bledy_z_rzedu'] ?? 0) + 1;
-            $po    = Harmonogram::poBledzie($teraz, $bledy, $retry);
+            // #433: do UI/JSON tylko komunikat z whitelisty albo generyczny + ID zdarzenia (pełny błąd w logu).
+            $bladUi = BladUi::komunikat($e, 'threatfox pobieranie');
+            $bledy  = (int) ($stan['bledy_z_rzedu'] ?? 0) + 1;
+            $po     = Harmonogram::poBledzie($teraz, $bledy, $retry);
             $this->zapiszStan([
                 'bledy_z_rzedu'   => $bledy,
-                'ostatni_blad'    => mb_substr($e->getMessage(), 0, 1000),
+                'ostatni_blad'    => mb_substr($bladUi, 0, 1000),
                 'ostatni_blad_at' => self::fmt($teraz),
                 'nastepne_po'     => self::fmt($po),
             ]);
-            $this->historia($teraz, 'blad', null, null, $e->getMessage() . ' (ponowna próba po ' . gmdate('Y-m-d H:i', $po) . ' UTC)');
+            $this->historia($teraz, 'blad', null, null, $bladUi . ' (ponowna próba po ' . gmdate('Y-m-d H:i', $po) . ' UTC)');
             if ($importId !== null) {
-                $this->koperta->zakonczBlad($importId, $e->getMessage());
+                $this->koperta->zakonczBlad($importId, $bladUi);
             }
 
             return [
                 'status' => 'blad',
-                'msg'    => $e->getMessage() . ' — wynik bez zmian, ponowna próba po ' . gmdate('Y-m-d H:i', $po) . ' UTC',
+                'msg'    => $bladUi . ' — wynik bez zmian, ponowna próba po ' . gmdate('Y-m-d H:i', $po) . ' UTC',
             ];
         }
     }

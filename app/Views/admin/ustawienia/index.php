@@ -58,7 +58,7 @@
                 </label>
                 <textarea class="form-control font-monospace" id="as198050_cidry" name="as198050_cidry"
                           rows="12" spellcheck="false"
-                          placeholder="np.&#10;91.231.80.0/22&#10;176.97.24.0/21&#10;2a0f:1700::/29"><?= esc($asCidryTekst) ?></textarea>
+                          placeholder="np.&#10;91.231.80.0/22&#10;176.97.24.0/21&#10;2a0f:1700::/29"><?= esc((string) old('as198050_cidry', $asCidryTekst, false)) ?></textarea>
             </div>
 
             <p class="small text-body-secondary mb-0">
