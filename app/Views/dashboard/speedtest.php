@@ -13,6 +13,7 @@ $filtry = is_array($filtry ?? null) ? $filtry : [
     'wszystkie'         => false,
 ];
 $okno     = (int) ($filtry['okno'] ?? 7);
+$asAsn    = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 $kpi      = is_array($kpi ?? null) ? $kpi : [];
 $agregaty = is_array($agregaty ?? null) ? $agregaty : [];
 $dzienne  = is_array($dzienne ?? null) ? $dzienne : [];
@@ -95,7 +96,7 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
         <p class="text-body-secondary mb-0">
             Źródło: Ookla <strong>Servers reporting</strong> — tylko testy do Waszego hostowanego serwera
             (np. Knurów), nie wszystkie speedtesty klientów w internecie.
-            MCS zapisuje wyłącznie pomiary z AS198050; obce IP uderzające w ten sam serwer
+            MCS zapisuje wyłącznie pomiary z AS<?= $asAsn ?>; obce IP uderzające w ten sam serwer
             (też mogą wysycić port w LibreNMS) nie trafiają do bazy.
             IPv4: Ookla anonimizuje do <span class="font-monospace">*.0</span> (agregat /24);
             IPv6: kolumna <span class="font-monospace">ipv6 address</span> (agregat /48), gdy brak IPv4.
@@ -168,7 +169,7 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
                         <input class="form-check-input" type="checkbox" value="1" name="tylko_as"
                                id="filtr-tylko-as" <?= $tylkoAs ? 'checked' : '' ?>>
                         <label class="form-check-label" for="filtr-tylko-as">
-                            Tylko AS198050
+                            Tylko AS<?= $asAsn ?>
                             <span class="text-body-secondary small">(CIDR z ustawień)</span>
                         </label>
                     </div>

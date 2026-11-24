@@ -140,6 +140,7 @@ final class DashboardListyViewTest extends CIUnitTestCase
             'formAkcja'       => 'http://example.com/dashboard/problematyczne-ip',
             'wyczyscHref'     => 'http://example.com/dashboard/problematyczne-ip?wyczysc=1',
             'asMatchWlaczone' => true,
+            'asAsn'           => 65001,
             'revDnsWlaczone'  => false,
             'pager'           => null,
             'listaOd'         => 0,
@@ -149,6 +150,8 @@ final class DashboardListyViewTest extends CIUnitTestCase
         ]);
 
         $this->assertStringContainsString('name="podsiec"', $html);
+        $this->assertStringContainsString('AS65001', $html);
+        $this->assertStringNotContainsString('AS198050', $html);
         $this->assertStringContainsString('name="cidr"', $html);
         $this->assertStringContainsString('Podsieć', $html);
         $this->assertStringContainsString('id="filtr-cidr"', $html);
