@@ -241,6 +241,15 @@ class Dashboard extends BaseController
         $blad    = null;
         try {
             $raw = $model->listedAktualne($akceptujIp, $lista !== '' ? $lista : null, 500);
+            // zbiorczy lookup LMS (issue #445): jedno WHERE ip IN (…) zamiast N zapytań per IP
+            $ipsLms = [];
+            foreach ($raw as $row) {
+                $ip = (string) ($row['ip'] ?? '');
+                if ($ip !== '') {
+                    $ipsLms[] = $ip;
+                }
+            }
+            $lmsMapa = $lms->znajdzWiele($ipsLms);
             foreach ($raw as $row) {
                 $ip   = (string) ($row['ip'] ?? '');
                 $listy = $row['listy_json'] ?? [];
@@ -257,7 +266,7 @@ class Dashboard extends BaseController
                         $hit[] = (string) $id;
                     }
                 }
-                $lmsRow = $ip !== '' ? $lms->znajdzPoIp($ip) : null;
+                $lmsRow = $ip !== '' ? ($lmsMapa[$ip] ?? null) : null;
                 $wiersze[] = [
                     'ip'           => $ip,
                     'listy'        => $hit,

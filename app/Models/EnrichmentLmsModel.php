@@ -44,6 +44,37 @@ class EnrichmentLmsModel extends Model
     }
 
     /**
+     * Zbiorczy lookup po wielu IP (issue #445): jeden SELECT … WHERE ip IN (…) na partię 500,
+     * zamiast N zapytań per IP. Zwraca mapę ip => wiersz.
+     *
+     * @param list<string> $ips
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function znajdzWiele(array $ips): array
+    {
+        $unikalne = [];
+        foreach ($ips as $ip) {
+            $ip = trim((string) $ip);
+            if ($ip !== '') {
+                $unikalne[$ip] = true;
+            }
+        }
+
+        $mapa = [];
+        foreach (array_chunk(array_keys($unikalne), 500) as $partia) {
+            $wiersze = $this->whereIn('ip', $partia)->findAll();
+            foreach ($wiersze as $w) {
+                if (is_array($w) && isset($w['ip'])) {
+                    $mapa[(string) $w['ip']] = $w;
+                }
+            }
+        }
+
+        return $mapa;
+    }
+
+    /**
      * Upsert po PK `ip` — atomowy INSERT … ON CONFLICT (brak wyścigu check-then-insert).
      *
      * @param array<string, mixed> $dane
