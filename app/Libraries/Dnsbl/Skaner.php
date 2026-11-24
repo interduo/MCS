@@ -494,19 +494,21 @@ class Skaner
             foreach ($d['zdjete'] as $kluczIp) {
                 $zmianyZdjete[] = ['kod' => (string) $kod, 'ip' => (string) $kluczIp];
             }
+            // zbiorczy upsert (issue #446): jedno INSERT … ON CONFLICT na partię 500 zamiast per-IP
+            $upserty = [];
             foreach (array_merge($d['nowe'], $d['utrzymane']) as $kluczIp) {
-                $w = $listed[$kod][$kluczIp];
-                $t = $this->db->prefixTable('mcs_dnsbl_listingi');
-                $this->db->query(
-                    'INSERT INTO ' . $t . ' (ip, strefa_kod, kody, txt, pierwszy_raz, ostatni_raz, aktywny, skan_id)
-                     VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)
-                     ON CONFLICT (ip, strefa_kod) DO UPDATE SET
-                       kody = EXCLUDED.kody, txt = EXCLUDED.txt, ostatni_raz = EXCLUDED.ostatni_raz, skan_id = EXCLUDED.skan_id,
-                       pierwszy_raz = CASE WHEN ' . $t . '.aktywny THEN ' . $t . '.pierwszy_raz ELSE EXCLUDED.pierwszy_raz END,
-                       aktywny = TRUE',
-                    [$kluczIp, $kod, implode(',', $w['kody']), $w['txt'], $teraz, $teraz, $skanId],
-                );
+                $w         = $listed[$kod][$kluczIp];
+                $upserty[] = [
+                    'ip'           => (string) $kluczIp,
+                    'strefa_kod'   => (string) $kod,
+                    'kody'         => implode(',', $w['kody']),
+                    'txt'          => (string) $w['txt'],
+                    'pierwszy_raz' => $teraz,
+                    'ostatni_raz'  => $teraz,
+                    'skan_id'      => $skanId,
+                ];
             }
+            $this->upsertListingi($upserty);
             foreach (array_chunk($d['zdjete'], 500) as $partia) {
                 $this->db->table('mcs_dnsbl_listingi')->where('strefa_kod', $kod)->whereIn('ip', $partia)
                     ->update(['aktywny' => false, 'skan_id' => $skanId]);
@@ -624,6 +626,45 @@ class Skaner
         }
 
         return $out;
+    }
+
+    /**
+     * Zbiorczy upsert bieżących listingów (issue #446): INSERT … ON CONFLICT (ip, strefa_kod)
+     * partiami po 500 wierszy (multi-row VALUES) zamiast jednego zapytania per IP.
+     * pierwszy_raz zostaje przy aktywnym listingu, przy ponownym listingu po zdjęciu = nowa data.
+     *
+     * @param list<array{ip: string, strefa_kod: string, kody: string, txt: string, pierwszy_raz: string, ostatni_raz: string, skan_id: int}> $wiersze
+     */
+    private function upsertListingi(array $wiersze): void
+    {
+        if ($wiersze === []) {
+            return;
+        }
+        $t         = $this->db->prefixTable('mcs_dnsbl_listingi');
+        $kolumny   = ['ip', 'strefa_kod', 'kody', 'txt', 'pierwszy_raz', 'ostatni_raz', 'aktywny', 'skan_id'];
+        $placeholder = '(?, ?, ?, ?, ?, ?, TRUE, ?)';
+        foreach (array_chunk($wiersze, 500) as $partia) {
+            $values = [];
+            $params = [];
+            foreach ($partia as $w) {
+                $values[] = $placeholder;
+                $params[] = $w['ip'];
+                $params[] = $w['strefa_kod'];
+                $params[] = $w['kody'];
+                $params[] = $w['txt'];
+                $params[] = $w['pierwszy_raz'];
+                $params[] = $w['ostatni_raz'];
+                $params[] = $w['skan_id'];
+            }
+            $this->db->query(
+                'INSERT INTO ' . $t . ' (' . implode(', ', $kolumny) . ') VALUES ' . implode(', ', $values)
+                . ' ON CONFLICT (ip, strefa_kod) DO UPDATE SET
+                       kody = EXCLUDED.kody, txt = EXCLUDED.txt, ostatni_raz = EXCLUDED.ostatni_raz, skan_id = EXCLUDED.skan_id,
+                       pierwszy_raz = CASE WHEN ' . $t . '.aktywny THEN ' . $t . '.pierwszy_raz ELSE EXCLUDED.pierwszy_raz END,
+                       aktywny = TRUE',
+                $params,
+            );
+        }
     }
 
     /**
