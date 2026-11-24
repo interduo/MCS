@@ -243,7 +243,7 @@ class Pluginy extends BaseController
         return match ($status) {
             'zlecono' => redirect()->to('/admin/pluginy')->with(
                 'komunikat',
-                'Zlecono pobieranie w tle: ' . $zrodlo . '. Wynik: kolumna statusu źródła.',
+                'Zlecono pobieranie w tle: ' . $zrodlo . '. Wynik zobaczysz w kolumnie Status po odświeżeniu strony (log: writable/logs/mcs-pobierz-tlo.log).',
             ),
             'zajety' => redirect()->to('/admin/pluginy')->with('blad', 'Pobieranie już trwa: ' . $zrodlo),
             'pominiety' => redirect()->to('/admin/pluginy')->with('blad', 'Import wstrzymany — ' . $zrodlo . ': ' . $msg),
