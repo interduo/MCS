@@ -109,6 +109,9 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
 <?php if (! empty($flashBlad)): ?>
     <div class="alert alert-danger border-0 shadow-sm rounded-3" role="alert"><?= esc($flashBlad) ?></div>
 <?php endif; ?>
+<?php if (! empty($blad)): ?>
+    <div class="alert alert-warning border-0 shadow-sm rounded-3" role="alert"><?= esc($blad) ?></div>
+<?php endif; ?>
 
 <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
