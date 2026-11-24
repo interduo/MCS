@@ -267,6 +267,58 @@ final class ThreatfoxSerwisTest extends CIUnitTestCase
         $this->assertSame(2, $this->db->table('mcs_threatfox_historia')->where('zdarzenie', 'zdjete')->countAllResults());
     }
 
+    /**
+     * Issue #443 regresja: więcej niż jedna paczka (500 rekordów) — upsert/diff/zdjęcia
+     * zbiorcze dają tę samą liczbę aktywnych IOC i trafień co import „per wiersz”.
+     */
+    public function testWielePaczekPo500Rekordow(): void
+    {
+        // 700 IOC-ów IP w naszym prefiksie 91.231.80.0/22 (91.231.80.1 … 91.231.82.190)
+        $data = [];
+        $i    = 0;
+        for ($a = 80; $a <= 82 && count($data) < 700; $a++) {
+            for ($b = 1; $b <= 254 && count($data) < 700; $b++) {
+                $data[] = [
+                    'id' => (string) (++$i), 'ioc' => "91.231.{$a}.{$b}", 'ioc_type' => 'ip',
+                    'threat_type' => 'scanner', 'confidence_level' => 10,
+                ];
+            }
+        }
+        $this->ustawData($data);
+
+        $w = $this->serwis()->uruchom();
+        $this->assertSame('ok', $w['status'], $w['msg']);
+        $this->assertSame(700, $w['rekordy']);
+        $this->assertSame(700, $w['trafienia']);
+        $this->assertSame(700, $w['nowe']);
+        $this->assertSame(700, $this->db->table('mcs_threatfox_ioc')->countAllResults());
+        $this->assertSame(700, $this->db->table('mcs_threatfox_ioc')->where('aktywne', true)->countAllResults());
+        $this->assertSame(700, $this->db->table('mcs_threatfox_trafienia')->where('aktywne', true)->countAllResults());
+        $this->assertSame(700, $this->db->table('mcs_incydenty')->countAllResults());
+        $this->assertSame(700, $this->db->table('mcs_obserwacje')->countAllResults());
+        // każdy aktywny trafienie ma podpięty incydent_id
+        $this->assertSame(
+            0,
+            $this->db->table('mcs_threatfox_trafienia')->where('aktywne', true)->where('incydent_id', null)->countAllResults(),
+        );
+
+        // drugie pobranie z podzbiorem 300 → zdjęcia zbiorcze: 400 trafień i 400 IOC zdjętych
+        $this->teraz += 7 * 3600;
+        $this->ustawData(array_slice($data, 0, 300));
+        $w2 = $this->serwis()->uruchom();
+        $this->assertSame('ok', $w2['status'], $w2['msg']);
+        $this->assertSame(300, $w2['rekordy']);
+        $this->assertSame(300, $w2['trafienia']);
+        $this->assertSame(0, $w2['nowe']);
+        $this->assertSame(400, $w2['zdjete']);
+        $this->assertSame(300, $this->db->table('mcs_threatfox_ioc')->where('aktywne', true)->countAllResults());
+        $this->assertSame(300, $this->db->table('mcs_threatfox_trafienia')->where('aktywne', true)->countAllResults());
+        $this->assertSame(400, $this->db->table('mcs_threatfox_historia')->where('zdarzenie', 'zdjete')->countAllResults());
+        // incydenty zostają (dedup), obserwacje dopisane tylko dla aktywnych trafień
+        $this->assertSame(700, $this->db->table('mcs_incydenty')->countAllResults());
+        $this->assertSame(1000, $this->db->table('mcs_obserwacje')->countAllResults());
+    }
+
     public function testBladPoCzystymNieZmieniaWyniku(): void
     {
         $this->serwis()->uruchom();

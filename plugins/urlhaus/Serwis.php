@@ -87,8 +87,10 @@ final class Serwis
             if ($importId === null) {
                 return $this->koniecBlad($zapisany['bledy_z_rzedu'], 'nie otwarto przebiegu importu');
             }
+            // Zbiorczy zapis incydentów (issue #442): jedno zapiszWiele zamiast pętli per wiersz.
+            $dane = [];
             foreach ($incydenty as $inc) {
-                $this->zapis->zapisz([
+                $dane[] = [
                     'zrodlo'           => self::ZRODLO,
                     'klucz_dedupu'     => self::ZRODLO . '|' . $inc['ip'],
                     'podmiot_typ'      => 'ip',
@@ -100,8 +102,9 @@ final class Serwis
                     'tytul'            => $inc['tytul'],
                     'import_id'        => $importId,
                     'payload'          => $inc['payload'],
-                ]);
+                ];
             }
+            $this->zapis->zapiszWiele($dane);
             $this->koperta->zakonczOk($importId, [
                 'trafienia'         => count($incydenty),
                 'pominiete_domeny'  => $parsed['pominiete_domeny'],
