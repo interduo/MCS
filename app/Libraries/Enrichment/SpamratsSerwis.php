@@ -9,13 +9,14 @@ use App\Models\PluginModel;
 /**
  * Enrichment SpamRats DNSBL RATS-All: cache TTL + lookup na żądanie.
  * Świadomie NIE zapisuje do mcs_incydenty / mcs_obserwacje / badge.
+ *
+ * Szkielet sprawdz() (walidacja IP → tylko IPv4 → cache → fixture → DNS
+ * → upsert) jest w {@see EnrichmentSerwisBaza}; tu tylko klient,
+ * konfiguracja credentials i mapowanie odpowiedzi.
  */
-class SpamratsSerwis
+class SpamratsSerwis extends EnrichmentSerwisBaza
 {
     private SpamratsClient $client;
-    private EnrichmentSpamratsModel $model;
-    private int $cacheTtl;
-    private string $fixturePath;
 
     public function __construct(
         ?SpamratsClient $client = null,
@@ -23,11 +24,14 @@ class SpamratsSerwis
         ?int $cacheTtl = null,
         ?string $fixturePath = null,
     ) {
-        $this->client      = $client ?? SpamratsClient::fromEnv();
-        $this->model       = $model ?? model(EnrichmentSpamratsModel::class);
-        $ttl               = $cacheTtl ?? \App\Libraries\OpcjeMcs::int('mcs.spamrats.cacheTtl');
-        $this->cacheTtl    = max(0, $ttl);
-        $this->fixturePath = $fixturePath ?? trim((string) env('mcs.spamrats.fixturePath', ''));
+        $this->client = $client ?? SpamratsClient::fromEnv();
+        $this->ustawCache(
+            $model ?? model(EnrichmentSpamratsModel::class),
+            $cacheTtl,
+            $fixturePath,
+            'mcs.spamrats.cacheTtl',
+            'mcs.spamrats.fixturePath',
+        );
     }
 
     public function hasCredentials(): bool
@@ -35,21 +39,28 @@ class SpamratsSerwis
         return $this->client->hasCredentials();
     }
 
-    public function hasFixture(): bool
+    protected function maZrodlo(): bool
     {
-        return $this->fixturePath !== '' && is_readable($this->fixturePath);
+        return $this->hasCredentials();
     }
 
-    public function tryb(): string
+    protected function brakZrodlaKomunikat(): string
     {
-        if ($this->hasFixture()) {
-            return 'fixture';
-        }
-        if ($this->hasCredentials()) {
-            return 'dns';
+        return $this->client->brakCredentialsKomunikat();
+    }
+
+    protected function trybZrodla(): string
+    {
+        return 'dns';
+    }
+
+    protected function walidujIp(string $ip): ?string
+    {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            return 'SpamRats DNSBL obsługuje tylko IPv4.';
         }
 
-        return 'brak_klucza';
+        return null;
     }
 
     /**
@@ -83,150 +94,42 @@ class SpamratsSerwis
     }
 
     /**
-     * @return array<string, mixed>|null
-     */
-    public function podgladCache(string $ip): ?array
-    {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return null;
-        }
-
-        $cache = $this->model->znajdzPoIp($ip);
-        if (! $this->model->cacheWazny($cache, $this->cacheTtl) || ! is_array($cache)) {
-            return null;
-        }
-
-        return $this->wierszDoWyniku($cache);
-    }
-
-    /**
-     * @return array{
-     *   ok:bool,
-     *   z_cache:bool,
-     *   tryb:string,
-     *   blad:?string,
-     *   ip:string,
-     *   wynik:?array<string,mixed>
-     * }
-     */
-    public function sprawdz(string $ip, bool $force = false): array
-    {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => $this->tryb(),
-                'blad'    => 'Wymagany prawidłowy adres IP.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => $this->tryb(),
-                'blad'    => 'SpamRats DNSBL obsługuje tylko IPv4.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        if (! $force) {
-            $cache = $this->model->znajdzPoIp($ip);
-            if ($this->model->cacheWazny($cache, $this->cacheTtl)) {
-                return [
-                    'ok'      => true,
-                    'z_cache' => true,
-                    'tryb'    => 'cache',
-                    'blad'    => null,
-                    'ip'      => $ip,
-                    'wynik'   => $this->wierszDoWyniku($cache),
-                ];
-            }
-        }
-
-        if ($this->hasFixture()) {
-            return $this->zFixture($ip);
-        }
-
-        if (! $this->hasCredentials()) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'brak_klucza',
-                'blad'    => $this->client->brakCredentialsKomunikat(),
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        $resp = $this->client->checkIp($ip);
-        if (! $resp['ok'] || ! is_array($resp['data'])) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'dns',
-                'blad'    => $resp['error'] !== '' ? $resp['error'] : 'Błąd DNS SpamRats',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        $wiersz = $this->znormalizujIZapisz($ip, $resp['data'], 'dns');
-
-        return [
-            'ok'      => true,
-            'z_cache' => false,
-            'tryb'    => 'dns',
-            'blad'    => null,
-            'ip'      => $ip,
-            'wynik'   => $this->wierszDoWyniku($wiersz),
-        ];
-    }
-
-    /**
+     * @param array<string, mixed> $kontekst
+     *
      * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
      */
-    private function zFixture(string $ip): array
+    protected function zFixture(string $ip, array $kontekst): array
     {
-        $raw = file_get_contents($this->fixturePath);
-        if ($raw === false) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'fixture',
-                'blad'    => 'Nie można odczytać fixturePath.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
+        $raw = $this->wczytajFixtureRaw();
+        if ($raw === null) {
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Nie można odczytać fixturePath.', $ip, null);
         }
 
         $json = json_decode($raw, true);
         if (! is_array($json)) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'fixture',
-                'blad'    => 'Fixture SpamRats nie jest poprawnym JSON.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Fixture SpamRats nie jest poprawnym JSON.', $ip, null);
         }
 
-        $wiersz = $this->znormalizujIZapisz($ip, $json, 'fixture');
+        $wiersz = $this->znormalizujIZapisz($ip, $json, $this->trybFixture());
 
-        return [
-            'ok'      => true,
-            'z_cache' => false,
-            'tryb'    => 'fixture',
-            'blad'    => null,
-            'ip'      => $ip,
-            'wynik'   => $this->wierszDoWyniku($wiersz),
-        ];
+        return $this->odpowiedz(true, false, $this->trybFixture(), null, $ip, $this->wierszDoWyniku($wiersz));
+    }
+
+    /**
+     * @param array<string, mixed> $kontekst
+     *
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
+     */
+    protected function zZrodla(string $ip, array $kontekst): array
+    {
+        $resp = $this->client->checkIp($ip);
+        if (! $resp['ok'] || ! is_array($resp['data'])) {
+            return $this->odpowiedz(false, false, $this->trybZrodla(), $resp['error'] !== '' ? $resp['error'] : 'Błąd DNS SpamRats', $ip, null);
+        }
+
+        $wiersz = $this->znormalizujIZapisz($ip, $resp['data'], $this->trybZrodla());
+
+        return $this->odpowiedz(true, false, $this->trybZrodla(), null, $ip, $this->wierszDoWyniku($wiersz));
     }
 
     /**
@@ -265,10 +168,7 @@ class SpamratsSerwis
             'checked_at'    => gmdate('Y-m-d H:i:sP'),
         ];
 
-        $this->model->upsertDlaIp($ip, $wiersz);
-        $odczyt = $this->model->znajdzPoIp($ip);
-
-        return is_array($odczyt) ? $odczyt : array_merge(['ip' => $ip], $wiersz);
+        return $this->zapiszWiersz($ip, $wiersz);
     }
 
     /**
@@ -276,7 +176,7 @@ class SpamratsSerwis
      *
      * @return array<string, mixed>
      */
-    private function wierszDoWyniku(array $wiersz): array
+    protected function wierszDoWyniku(array $wiersz): array
     {
         $kody = $wiersz['kody_json'] ?? [];
         if (is_string($kody)) {
@@ -287,7 +187,7 @@ class SpamratsSerwis
         }
 
         return [
-            'ip'           => (string) ($wiersz['ip'] ?? ''),
+            'ip'            => (string) ($wiersz['ip'] ?? ''),
             'listed'       => $this->jakoBoolNullable($wiersz['listed'] ?? null),
             'listed_dyna'  => $this->jakoBoolNullable($wiersz['listed_dyna'] ?? null),
             'listed_noptr' => $this->jakoBoolNullable($wiersz['listed_noptr'] ?? null),

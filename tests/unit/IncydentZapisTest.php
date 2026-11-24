@@ -1,7 +1,7 @@
 <?php
 
 use App\Libraries\IncydentZapis;
-use App\Libraries\WagaV0;
+use App\Libraries\WagaV1;
 use App\Models\IncydentModel;
 use App\Models\ObserwacjaModel;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -70,7 +70,7 @@ final class IncydentZapisTest extends CIUnitTestCase
 
     public function testNowyIncydentIObserwacja(): void
     {
-        $waga = (new WagaV0())->wylicz('malware');
+        $waga = (new WagaV1())->wylicz('malware');
         $zapis = new IncydentZapis($this->db);
 
         $wynik = $zapis->zapisz([
@@ -92,7 +92,7 @@ final class IncydentZapisTest extends CIUnitTestCase
 
         $inc = model(IncydentModel::class)->find($wynik['incydent_id']);
         $this->assertSame('critical', $inc['waga']);
-        $this->assertSame('v0', $inc['wersja_wagi']);
+        $this->assertSame('v1', $inc['wersja_wagi']);
 
         $obs = model(ObserwacjaModel::class)->find($wynik['obserwacja_id']);
         $this->assertSame($wynik['incydent_id'], (int) $obs['incydent_id']);

@@ -23,7 +23,7 @@ Metody:
 
 Rdzeń ładuje wtyczki przez `App\Libraries\PluginRegistry`.
 
-Biblioteki wspólne (nie wtyczki): `ImportKoperta`, `WagaV1` (fallback `WagaV0`), `IncydentZapis`, `App\Libraries\Imap\*`.  
+Biblioteki wspólne (nie wtyczki): `ImportKoperta`, `WagaV1`, `IncydentZapis`, `App\Libraries\Imap\*`.  
 Waga: biblioteka `App\Libraries\WagaV1`.  
 Enrichment (Faza 3, **nie** w indeksie badge): `App\Libraries\Enrichment\*` — np. `php spark mcs:abuseipdb <ip>`, `php spark mcs:lms-mapowanie <ip>`.  
 Klucze skrzynek: `.env.example`.

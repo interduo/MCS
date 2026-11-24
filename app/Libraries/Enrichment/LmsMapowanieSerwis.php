@@ -9,14 +9,15 @@ use App\Models\EnrichmentLmsModel;
 /**
  * Enrichment LMS: cache TTL + lookup na żądanie + sync zbiorczy.
  * Świadomie NIE zapisuje do mcs_incydenty / mcs_obserwacje / badge.
+ *
+ * Szkielet sprawdz() (walidacja IP → cache → fixture → HTTP/DB → upsert)
+ * jest w {@see EnrichmentSerwisBaza}; tu tylko klienci LMS, konfiguracja
+ * źródła i mapowanie odpowiedzi.
  */
-class LmsMapowanieSerwis
+class LmsMapowanieSerwis extends EnrichmentSerwisBaza
 {
     private LmsMapowanieClient $http;
     private LmsMapowanieDbClient $db;
-    private EnrichmentLmsModel $model;
-    private int $cacheTtl;
-    private string $fixturePath;
     private string $nodeUrlTemplate;
 
     public function __construct(
@@ -29,32 +30,35 @@ class LmsMapowanieSerwis
     ) {
         $this->http            = $http ?? LmsMapowanieClient::fromEnv();
         $this->db              = $db ?? LmsMapowanieDbClient::fromEnv();
-        $this->model           = $model ?? model(EnrichmentLmsModel::class);
-        $ttl                   = $cacheTtl ?? \App\Libraries\OpcjeMcs::int('mcs.lms.cacheTtl');
-        $this->cacheTtl        = max(0, $ttl);
-        $this->fixturePath     = $fixturePath ?? trim((string) env('mcs.lms.fixturePath', ''));
+        $this->ustawCache(
+            $model ?? model(EnrichmentLmsModel::class),
+            $cacheTtl,
+            $fixturePath,
+            'mcs.lms.cacheTtl',
+            'mcs.lms.fixturePath',
+        );
         $this->nodeUrlTemplate = $nodeUrlTemplate
             ?? trim((string) env('mcs.lms.nodeUrlTemplate', ''));
     }
 
-    public function hasFixture(): bool
+    protected function maZrodlo(): bool
     {
-        return $this->fixturePath !== '' && is_readable($this->fixturePath);
+        return $this->http->hasConfig() || $this->db->hasConfig();
     }
 
-    public function tryb(): string
+    protected function trybZrodla(): string
     {
-        if ($this->hasFixture()) {
-            return 'fixture';
-        }
-        if ($this->http->hasConfig()) {
-            return 'api';
-        }
-        if ($this->db->hasConfig()) {
-            return 'db';
-        }
+        return $this->http->hasConfig() ? 'api' : 'db';
+    }
 
+    protected function trybBrak(): string
+    {
         return 'brak_konfiguracji';
+    }
+
+    protected function brakZrodlaKomunikat(): string
+    {
+        return 'Brak konfiguracji LMS — ustaw mcs.lms.baseUrl+mapToken, albo db*, albo fixturePath.';
     }
 
     /**
@@ -107,83 +111,27 @@ class LmsMapowanieSerwis
     }
 
     /**
-     * Podgląd ważnego cache bez wywołania LMS.
+     * @param array<string, mixed> $kontekst
      *
-     * @return array<string, mixed>|null
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
      */
-    public function podgladCache(string $ip): ?array
+    protected function zFixture(string $ip, array $kontekst): array
     {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return null;
-        }
-
-        $cache = $this->model->znajdzPoIp($ip);
-        if (! $this->model->cacheWazny($cache, $this->cacheTtl) || ! is_array($cache)) {
-            return null;
-        }
-
-        return $this->wierszDoWyniku($cache);
+        return $this->zFixtureLookup($ip);
     }
 
     /**
-     * @return array{
-     *   ok:bool,
-     *   z_cache:bool,
-     *   tryb:string,
-     *   blad:?string,
-     *   ip:string,
-     *   wynik:?array<string,mixed>
-     * }
+     * @param array<string, mixed> $kontekst
+     *
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
      */
-    public function sprawdz(string $ip, bool $force = false): array
+    protected function zZrodla(string $ip, array $kontekst): array
     {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => $this->tryb(),
-                'blad'    => 'Wymagany prawidłowy adres IP.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        if (! $force) {
-            $cache = $this->model->znajdzPoIp($ip);
-            if ($this->model->cacheWazny($cache, $this->cacheTtl)) {
-                return [
-                    'ok'      => true,
-                    'z_cache' => true,
-                    'tryb'    => 'cache',
-                    'blad'    => null,
-                    'ip'      => $ip,
-                    'wynik'   => $this->wierszDoWyniku($cache),
-                ];
-            }
-        }
-
-        if ($this->hasFixture()) {
-            return $this->zFixtureLookup($ip);
-        }
-
         if ($this->http->hasConfig()) {
             return $this->zHttpLookup($ip);
         }
 
-        if ($this->db->hasConfig()) {
-            return $this->zDbLookup($ip);
-        }
-
-        return [
-            'ok'      => false,
-            'z_cache' => false,
-            'tryb'    => 'brak_konfiguracji',
-            'blad'    => 'Brak konfiguracji LMS — ustaw mcs.lms.baseUrl+mapToken, albo db*, albo fixturePath.',
-            'ip'      => $ip,
-            'wynik'   => null,
-        ];
+        return $this->zDbLookup($ip);
     }
 
     /**
@@ -580,10 +528,7 @@ class LmsMapowanieSerwis
             'checked_at'        => $teraz,
         ];
 
-        $this->model->upsertDlaIp($ip, $wiersz);
-        $zapisany = $this->model->znajdzPoIp($ip);
-
-        return is_array($zapisany) ? $zapisany : array_merge(['ip' => $ip], $wiersz);
+        return $this->zapiszWiersz($ip, $wiersz);
     }
 
     /**
@@ -608,10 +553,7 @@ class LmsMapowanieSerwis
             'checked_at'        => $teraz,
         ];
 
-        $this->model->upsertDlaIp($ip, $wiersz);
-        $zapisany = $this->model->znajdzPoIp($ip);
-
-        return is_array($zapisany) ? $zapisany : array_merge(['ip' => $ip], $wiersz);
+        return $this->zapiszWiersz($ip, $wiersz);
     }
 
     /**
@@ -619,7 +561,7 @@ class LmsMapowanieSerwis
      *
      * @return array<string, mixed>
      */
-    private function wierszDoWyniku(array $wiersz): array
+    protected function wierszDoWyniku(array $wiersz): array
     {
         $raw = $wiersz['raw_json'] ?? null;
         if (is_string($raw)) {

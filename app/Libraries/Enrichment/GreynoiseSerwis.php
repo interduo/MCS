@@ -9,16 +9,14 @@ use App\Models\PluginModel;
 /**
  * Enrichment GreyNoise Community: cache TTL + lookup na żądanie.
  * Nie zapisuje do mcs_incydenty / badge. Cron nie woła API.
+ *
+ * Szkielet sprawdz() (walidacja IP → cache → fixture → API → upsert)
+ * jest w {@see EnrichmentSerwisBaza}; tu tylko klient, konfiguracja
+ * credentials i mapowanie odpowiedzi.
  */
-class GreynoiseSerwis
+class GreynoiseSerwis extends EnrichmentSerwisBaza
 {
     private GreynoiseClient $client;
-
-    private EnrichmentGreynoiseModel $model;
-
-    private int $cacheTtl;
-
-    private string $fixturePath;
 
     public function __construct(
         ?GreynoiseClient $client = null,
@@ -26,11 +24,14 @@ class GreynoiseSerwis
         ?int $cacheTtl = null,
         ?string $fixturePath = null,
     ) {
-        $this->client      = $client ?? GreynoiseClient::fromEnv();
-        $this->model       = $model ?? model(EnrichmentGreynoiseModel::class);
-        $ttl               = $cacheTtl ?? \App\Libraries\OpcjeMcs::int('mcs.greynoise.cacheTtl');
-        $this->cacheTtl    = max(0, $ttl);
-        $this->fixturePath = $fixturePath ?? trim((string) env('mcs.greynoise.fixturePath', ''));
+        $this->client = $client ?? GreynoiseClient::fromEnv();
+        $this->ustawCache(
+            $model ?? model(EnrichmentGreynoiseModel::class),
+            $cacheTtl,
+            $fixturePath,
+            'mcs.greynoise.cacheTtl',
+            'mcs.greynoise.fixturePath',
+        );
     }
 
     public function hasCredentials(): bool
@@ -38,21 +39,19 @@ class GreynoiseSerwis
         return $this->client->hasCredentials();
     }
 
-    public function hasFixture(): bool
+    protected function maZrodlo(): bool
     {
-        return $this->fixturePath !== '' && is_readable($this->fixturePath);
+        return $this->hasCredentials();
     }
 
-    public function tryb(): string
+    protected function brakZrodlaKomunikat(): string
     {
-        if ($this->hasFixture()) {
-            return 'plik';
-        }
-        if ($this->hasCredentials()) {
-            return 'api';
-        }
+        return $this->client->brakCredentialsKomunikat();
+    }
 
-        return 'brak_klucza';
+    protected function trybFixture(): string
+    {
+        return 'plik';
     }
 
     /**
@@ -79,62 +78,37 @@ class GreynoiseSerwis
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @param array<string, mixed> $kontekst
+     *
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
      */
-    public function podgladCache(string $ip): ?array
+    protected function zFixture(string $ip, array $kontekst): array
     {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return null;
+        $raw  = $this->wczytajFixtureRaw();
+        $data = $raw !== null ? json_decode($raw, true) : null;
+        if (! is_array($data)) {
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Nieczytelny plik GreyNoise.', $ip, null);
         }
-        $cache = $this->model->znajdzPoIp($ip);
-        if (! $this->model->cacheWazny($cache, $this->cacheTtl) || ! is_array($cache)) {
-            return null;
-        }
+        $wiersz = $this->zapisz($ip, 200, $data, $this->trybFixture());
 
-        return $this->wierszDoWyniku($cache);
+        return $this->odpowiedz(true, false, $this->trybFixture(), null, $ip, $this->wierszDoWyniku($wiersz));
     }
 
     /**
-     * @return array{ok: bool, z_cache: bool, tryb: string, blad: ?string, ip: string, wynik: ?array<string, mixed>}
+     * @param array<string, mixed> $kontekst
+     *
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
      */
-    public function sprawdz(string $ip, bool $force = false): array
+    protected function zZrodla(string $ip, array $kontekst): array
     {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return $this->odpowiedz(false, false, $this->tryb(), 'Wymagany prawidłowy adres IP.', $ip, null);
-        }
-
-        if (! $force) {
-            $cache = $this->model->znajdzPoIp($ip);
-            if ($this->model->cacheWazny($cache, $this->cacheTtl) && is_array($cache)) {
-                return $this->odpowiedz(true, true, 'cache', null, $ip, $this->wierszDoWyniku($cache));
-            }
-        }
-
-        if ($this->hasFixture()) {
-            $raw = file_get_contents($this->fixturePath);
-            $data = is_string($raw) ? json_decode($raw, true) : null;
-            if (! is_array($data)) {
-                return $this->odpowiedz(false, false, 'plik', 'Nieczytelny plik GreyNoise.', $ip, null);
-            }
-            $wiersz = $this->zapisz($ip, 200, $data, 'plik');
-
-            return $this->odpowiedz(true, false, 'plik', null, $ip, $this->wierszDoWyniku($wiersz));
-        }
-
-        if (! $this->hasCredentials()) {
-            return $this->odpowiedz(false, false, 'brak_klucza', $this->client->brakCredentialsKomunikat(), $ip, null);
-        }
-
         $resp = $this->client->lookup($ip);
         if (! $resp['ok'] || ! is_array($resp['data'])) {
-            return $this->odpowiedz(false, false, 'api', $resp['error'] !== '' ? $resp['error'] : 'Błąd API GreyNoise', $ip, null);
+            return $this->odpowiedz(false, false, $this->trybZrodla(), $resp['error'] !== '' ? $resp['error'] : 'Błąd API GreyNoise', $ip, null);
         }
 
-        $wiersz = $this->zapisz($ip, $resp['http_code'], $resp['data'], 'api');
+        $wiersz = $this->zapisz($ip, $resp['http_code'], $resp['data'], $this->trybZrodla());
 
-        return $this->odpowiedz(true, false, 'api', null, $ip, $this->wierszDoWyniku($wiersz));
+        return $this->odpowiedz(true, false, $this->trybZrodla(), null, $ip, $this->wierszDoWyniku($wiersz));
     }
 
     /**
@@ -157,10 +131,8 @@ class GreynoiseSerwis
             'zrodlo_danych'  => $zrodlo,
             'checked_at'     => gmdate('Y-m-d H:i:sP'),
         ];
-        $this->model->upsertDlaIp($ip, $wiersz);
-        $odczyt = $this->model->znajdzPoIp($ip);
 
-        return is_array($odczyt) ? $odczyt : array_merge(['ip' => $ip], $wiersz);
+        return $this->zapiszWiersz($ip, $wiersz);
     }
 
     /**
@@ -168,7 +140,7 @@ class GreynoiseSerwis
      *
      * @return array<string, mixed>
      */
-    private function wierszDoWyniku(array $wiersz): array
+    protected function wierszDoWyniku(array $wiersz): array
     {
         return [
             'ip'             => (string) ($wiersz['ip'] ?? ''),
@@ -205,22 +177,5 @@ class GreynoiseSerwis
         $tekst = trim((string) $wartosc);
 
         return $tekst === '' ? null : mb_substr($tekst, 0, $max);
-    }
-
-    /**
-     * @param array<string, mixed>|null $wynik
-     *
-     * @return array{ok: bool, z_cache: bool, tryb: string, blad: ?string, ip: string, wynik: ?array<string, mixed>}
-     */
-    private function odpowiedz(bool $ok, bool $zCache, string $tryb, ?string $blad, string $ip, ?array $wynik): array
-    {
-        return [
-            'ok'      => $ok,
-            'z_cache' => $zCache,
-            'tryb'    => $tryb,
-            'blad'    => $blad,
-            'ip'      => $ip,
-            'wynik'   => $wynik,
-        ];
     }
 }
