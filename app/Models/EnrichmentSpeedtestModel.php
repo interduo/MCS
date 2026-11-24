@@ -40,22 +40,36 @@ class EnrichmentSpeedtestModel extends Model
     }
 
     /**
+     * Upsert po PK `test_id` — atomowy INSERT … ON CONFLICT (brak wyścigu check-then-insert).
+     *
      * @param array<string, mixed> $dane
      */
     public function upsertPoTestId(string $testId, array $dane): void
     {
-        $istniej = $this->znajdzPoTestId($testId);
-        $payload = array_merge($dane, ['test_id' => $testId]);
+        $payload = array_merge($dane, [
+            'test_id'    => $testId,
+            'created_at' => $dane['created_at'] ?? gmdate('Y-m-d H:i:sP'),
+        ]);
+        // tylko pola z $allowedFields (jak insert()/update())
+        $payload = array_intersect_key($payload, array_flip($this->allowedFields));
 
-        if ($istniej === null) {
-            $payload['created_at'] = $dane['created_at'] ?? gmdate('Y-m-d H:i:sP');
-            $this->insert($payload);
-
-            return;
+        $kolumny      = array_keys($payload);
+        $miejsca      = implode(', ', array_fill(0, count($payload), '?'));
+        $aktualizacje = [];
+        foreach ($kolumny as $kolumna) {
+            // przy konflikcie PK i created_at zostają bez zmian
+            if ($kolumna === 'test_id' || $kolumna === 'created_at') {
+                continue;
+            }
+            $aktualizacje[] = $kolumna . ' = EXCLUDED.' . $kolumna;
         }
 
-        unset($payload['created_at']);
-        $this->update($testId, $payload);
+        $this->db->query(
+            'INSERT INTO ' . $this->db->prefixTable($this->table)
+            . ' (' . implode(', ', $kolumny) . ') VALUES (' . $miejsca . ')'
+            . ' ON CONFLICT (test_id) DO UPDATE SET ' . implode(', ', $aktualizacje),
+            array_values($payload),
+        );
     }
 
     /**
