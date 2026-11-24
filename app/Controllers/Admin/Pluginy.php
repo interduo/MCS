@@ -39,6 +39,12 @@ class Pluginy extends BaseController
             'nazwa'     => 'URLhaus',
             'poZapisie' => 'Włącz import i uruchom „Pobierz teraz”.',
         ],
+        'threatfox' => [
+            'opcja'     => 'mcs.threatfox.authKey',
+            'pole'      => 'mcs_threatfox_key',
+            'nazwa'     => 'ThreatFox',
+            'poZapisie' => 'Uruchom „Pobierz teraz”.',
+        ],
     ];
 
     public function index()
@@ -66,6 +72,7 @@ class Pluginy extends BaseController
             'kluczeZrodel' => [
                 'greynoise' => $this->stanKlucza('mcs.greynoise.apiKey'),
                 'urlhaus'   => $this->stanKlucza('mcs.urlhaus.authKey'),
+                'threatfox' => $this->stanKlucza('mcs.threatfox.authKey'),
             ],
         ]);
     }

@@ -189,6 +189,7 @@
                                     $modalKlucza = match ($zrodlo) {
                                         'greynoise' => 'modalGreynoiseKlucz',
                                         'urlhaus'   => 'modalUrlhausKlucz',
+                                        'threatfox' => 'modalThreatfoxKlucz',
                                         default     => '',
                                     };
                                     ?>
@@ -322,6 +323,19 @@ $etykietaZrodlaKlucza = static function (string $zrodlo): string {
     'link'        => 'https://auth.abuse.ch/',
     'linkTekst'   => 'Otwórz auth.abuse.ch',
     'opisLinku'   => 'Załóż darmowe konto i skopiuj Auth-Key. Ten sam klucz działa dla URLhaus.',
+    'labelPola'   => 'Auth-Key',
+    'placeholder' => 'wklej Auth-Key z abuse.ch',
+]) ?>
+<?= view('admin/pluginy/_modal_klucz', [
+    'id'          => 'modalThreatfoxKlucz',
+    'tytul'       => 'Auth-Key ThreatFox (abuse.ch)',
+    'zrodlo'      => 'threatfox',
+    'pole'        => 'mcs_threatfox_key',
+    'stan'        => is_array($kluczeZrodel['threatfox'] ?? null) ? $kluczeZrodel['threatfox'] : [],
+    'etykietaZrodla' => $etykietaZrodlaKlucza((string) ($kluczeZrodel['threatfox']['zrodlo'] ?? '')),
+    'link'        => 'https://auth.abuse.ch/',
+    'linkTekst'   => 'Otwórz auth.abuse.ch',
+    'opisLinku'   => 'Załóż darmowe konto i skopiuj Auth-Key. Ten sam klucz działa dla URLhaus i ThreatFox.',
     'labelPola'   => 'Auth-Key',
     'placeholder' => 'wklej Auth-Key z abuse.ch',
 ]) ?>
