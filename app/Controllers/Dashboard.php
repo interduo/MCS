@@ -2,7 +2,7 @@
 
 namespace App\Controllers;
 
-use App\Libraries\CsvBezpieczenstwo;
+use App\Libraries\Dashboard\EksportCsv;
 use App\Libraries\DashboardFiltry;
 use App\Libraries\Enrichment\SpeedtestSerwis;
 use App\Libraries\KolejkaDnia;
@@ -494,68 +494,28 @@ class Dashboard extends BaseController
 
     /**
      * CSV ranking problematycznych IP — te same filtry co lista.
+     * Logika eksportu (filtry, agregacja, CSV) w App\Libraries\Dashboard\EksportCsv (issue #464).
      */
     public function eksportCsv()
     {
-        $filtry = $this->parsujFiltry();
-        $bladFiltrow = $this->bladFiltrow($filtry, true);
+        $get     = $this->request->getGet();
+        $eksport = new EksportCsv();
+        $filtry  = $eksport->filtry(is_array($get) ? $get : []);
+
+        $bladFiltrow = $eksport->bladFiltrow($filtry);
         if ($bladFiltrow !== null) {
             return redirect()->to('/dashboard/problematyczne-ip')->with('blad', $bladFiltrow);
         }
 
-        $matcher    = new As198050Matcher();
-        $grupyCidr  = $this->grupyCidr($matcher, $filtry['cidr'] ?? null);
-
-        $topIp = model(IncydentModel::class)->topProblematyczneIp(
-            $filtry['okno'],
-            $filtry['zrodlo'],
-            $filtry['ip'],
-            $filtry['minWaga'],
-            $filtry['minZrodel'],
-            self::LISTA_MAX,
-            $grupyCidr,
-            $filtry['kategoria'],
-            $filtry['port'],
-        );
-
-        $fh = fopen('php://temp', 'r+');
-        if ($fh === false) {
+        $csv = $eksport->csv($eksport->wiersze($filtry));
+        if ($csv === null) {
             return redirect()->to('/dashboard/problematyczne-ip')->with('blad', 'Nie udało się przygotować eksportu CSV.');
         }
 
-        fputcsv($fh, [
-            'ip',
-            'liczba_zrodel',
-            'zrodla',
-            'kategorie',
-            'max_waga',
-            'liczba_incydentow',
-            'ostatnio_widziane',
-        ]);
-
-        foreach ($topIp as $wiersz) {
-            // Wszystkie pola neutralizowane przed formula injection (dane z zewnętrznych feedów).
-            fputcsv($fh, [
-                CsvBezpieczenstwo::pole($wiersz['ip'] ?? ''),
-                CsvBezpieczenstwo::pole($wiersz['liczba_zrodel'] ?? 0),
-                CsvBezpieczenstwo::pole(implode('|', $wiersz['zrodla'] ?? [])),
-                CsvBezpieczenstwo::pole(implode('|', $wiersz['kategorie'] ?? [])),
-                CsvBezpieczenstwo::pole($wiersz['max_waga'] ?? ''),
-                CsvBezpieczenstwo::pole($wiersz['liczba_incydentow'] ?? 0),
-                CsvBezpieczenstwo::pole($wiersz['ostatnio_widziane'] ?? ''),
-            ]);
-        }
-
-        rewind($fh);
-        $csv = stream_get_contents($fh);
-        fclose($fh);
-
-        $nazwa = 'mcs-problematyczne-ip-' . date('Ymd-His') . '.csv';
-
         return $this->response
             ->setHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->setHeader('Content-Disposition', 'attachment; filename="' . $nazwa . '"')
-            ->setBody(($csv !== false ? $csv : ''));
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $eksport->nazwaPliku() . '"')
+            ->setBody($csv);
     }
 
     /**
