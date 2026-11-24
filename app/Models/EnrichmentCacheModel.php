@@ -65,33 +65,74 @@ abstract class EnrichmentCacheModel extends Model
      */
     public function upsertDlaIp(string $ip, array $dane): void
     {
-        $teraz   = gmdate('Y-m-d H:i:sP');
-        $payload = array_merge($dane, [
-            'ip'         => $ip,
-            'created_at' => $teraz,
-            'updated_at' => $teraz,
-            'checked_at' => $dane['checked_at'] ?? $teraz,
-        ]);
-        // tylko pola z $allowedFields (jak insert()/update())
-        $payload = array_intersect_key($payload, array_flip($this->allowedFields));
+        $this->upsertWieleDlaIp([array_merge($dane, ['ip' => $ip])]);
+    }
 
-        $kolumny      = array_keys($payload);
-        $miejsca      = implode(', ', array_fill(0, count($payload), '?'));
-        $aktualizacje = [];
-        foreach ($kolumny as $kolumna) {
-            // przy konflikcie PK i created_at zostają bez zmian
-            if ($kolumna === 'ip' || $kolumna === 'created_at') {
-                continue;
-            }
-            $aktualizacje[] = $kolumna . ' = EXCLUDED.' . $kolumna;
+    /**
+     * Batch upsert po PK `ip` (issue #458): jedno INSERT … ON CONFLICT (ip) DO UPDATE na partię 500
+     * wierszy (multi-row VALUES) zamiast upsertu per IP przy pełnym skanie AS.
+     * Przy konflikcie PK i created_at zostają bez zmian.
+     *
+     * @param list<array<string, mixed>> $wiersze każdy z kluczem ip i polami z $allowedFields
+     */
+    public function upsertWieleDlaIp(array $wiersze): void
+    {
+        if ($wiersze === []) {
+            return;
         }
-
-        $this->db->query(
-            'INSERT INTO ' . $this->db->prefixTable($this->table)
-            . ' (' . implode(', ', $kolumny) . ') VALUES (' . $miejsca . ')'
-            . ' ON CONFLICT (ip) DO UPDATE SET ' . implode(', ', $aktualizacje),
-            array_values($payload),
-        );
+        // dedup po ip (ostatni wygrywa jak przy sekwencyjnym upsert) — duplikat w jednym
+        // batch INSERT … ON CONFLICT rzuciłby błąd „cannot affect row a second time”
+        $poKluczu = [];
+        foreach ($wiersze as $w) {
+            if (isset($w['ip'])) {
+                $poKluczu[(string) $w['ip']] = $w;
+            } else {
+                $poKluczu[] = $w;
+            }
+        }
+        $wiersze = array_values($poKluczu);
+        $t       = $this->db->prefixTable($this->table);
+        foreach (array_chunk($wiersze, 500) as $partia) {
+            $teraz    = gmdate('Y-m-d H:i:sP');
+            $payloads = [];
+            $kolumny  = [];
+            foreach ($partia as $w) {
+                $payload = array_merge($w, [
+                    'created_at' => $teraz,
+                    'updated_at' => $teraz,
+                    'checked_at' => $w['checked_at'] ?? $teraz,
+                ]);
+                // tylko pola z $allowedFields (jak insert()/update()); kolumny = unia kluczy partii
+                $payload    = array_intersect_key($payload, array_flip($this->allowedFields));
+                $payloads[] = $payload;
+                foreach (array_keys($payload) as $k) {
+                    $kolumny[$k] = true;
+                }
+            }
+            $kolumny      = array_keys($kolumny);
+            $aktualizacje = [];
+            foreach ($kolumny as $kolumna) {
+                // przy konflikcie PK i created_at zostają bez zmian
+                if ($kolumna === 'ip' || $kolumna === 'created_at') {
+                    continue;
+                }
+                $aktualizacje[] = $kolumna . ' = EXCLUDED.' . $kolumna;
+            }
+            $values      = [];
+            $params      = [];
+            $placeholder = '(' . implode(', ', array_fill(0, count($kolumny), '?')) . ')';
+            foreach ($payloads as $payload) {
+                $values[] = $placeholder;
+                foreach ($kolumny as $kolumna) {
+                    $params[] = $payload[$kolumna] ?? null;
+                }
+            }
+            $this->db->query(
+                'INSERT INTO ' . $t . ' (' . implode(', ', $kolumny) . ') VALUES ' . implode(', ', $values)
+                . ' ON CONFLICT (ip) DO UPDATE SET ' . implode(', ', $aktualizacje),
+                $params,
+            );
+        }
     }
 
     public function cacheWazny(?array $wiersz, int $ttlSek): bool

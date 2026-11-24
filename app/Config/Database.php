@@ -44,7 +44,10 @@ class Database extends Config
         'port'         => 3306,
         // PostgreSQL: sesja zawsze w UTC (granice okien dat i dzień w osi czasu liczone w UTC),
         // niezależnie od ustawienia timezone serwera. Dla MySQL i SQLite ignorowane.
-        'options'      => '-c timezone=UTC',
+        // Nadpisywane przez .env: database.default.options / database.default.connect_timeout.
+        'options'      => '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=60000',
+        // Limit czasu na nawiązanie połączenia z PG (sekundy) — dodawany do DSN przez sterownik Postgre.
+        'connect_timeout' => '10',
         'numberNative' => false,
         'foundRows'    => false,
         'dateFormat'   => [

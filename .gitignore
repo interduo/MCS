@@ -92,6 +92,8 @@ php_errors.log
 # Composer
 #-------------------------
 vendor/
+# Wyjątek: zvendorowane assety frontendu (Bootstrap, bootstrap-icons) są częścią repo (issue #455).
+!/public/vendor/
 
 #-------------------------
 # IDE / Development Files
