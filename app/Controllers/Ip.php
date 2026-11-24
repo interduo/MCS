@@ -78,6 +78,15 @@ class Ip extends BaseController
 
         $speedtest = new SpeedtestSerwis();
 
+        $wtyczkiIp = [
+            'lms'         => $lmsTryb !== 'brak_konfiguracji',
+            'abuseipdb'   => $abuseTryb !== 'brak_klucza',
+            'ismalicious' => $ismTryb !== 'brak_klucza',
+            'greynoise'   => $greynoiseTryb !== 'brak_klucza',
+            'spamrats'    => $spamratsTryb !== 'brak_klucza',
+            'speedtest'   => $speedtest->tryb() !== 'brak_konfiguracji',
+        ];
+
         $pustyStatus = [
             'max_waga'         => '',
             'liczba_problemow' => 0,
@@ -124,6 +133,7 @@ class Ip extends BaseController
                     'greynoiseKomunikat'   => $greynoiseKomunikat,
                     'speedtestCidr'        => null,
                     'speedtestLiczba24'    => 0,
+                    'wtyczkiIp'            => $wtyczkiIp,
                     'flashOk'            => null,
                     'flashBlad'          => null,
                     'revDnsWlaczone'     => $revDnsWlaczone,
@@ -183,10 +193,12 @@ class Ip extends BaseController
 
         $stCidr   = SpeedtestSerwis::cidrZIp($ip);
         $stLiczba = 0;
-        try {
-            $stLiczba = $speedtest->liczbaTestowDlaCidrZIp($ip, 0);
-        } catch (\Throwable) {
-            $stLiczba = 0;
+        if ($wtyczkiIp['speedtest']) {
+            try {
+                $stLiczba = $speedtest->liczbaTestowDlaCidrZIp($ip, 0);
+            } catch (\Throwable) {
+                $stLiczba = 0;
+            }
         }
 
         return view('ip/show', [
@@ -227,6 +239,7 @@ class Ip extends BaseController
             'greynoiseKomunikat'   => $greynoiseKomunikat,
             'speedtestCidr'        => $stCidr,
             'speedtestLiczba24'    => $stLiczba,
+            'wtyczkiIp'            => $wtyczkiIp,
             'flashOk'            => session()->getFlashdata('komunikat'),
             'flashBlad'          => session()->getFlashdata('blad'),
             'revDnsWlaczone'     => $revDnsWlaczone,
