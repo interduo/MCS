@@ -7,13 +7,14 @@ use App\Models\EnrichmentAbuseipdbModel;
 /**
  * Enrichment AbuseIPDB: cache TTL + lookup na żądanie.
  * Świadomie NIE zapisuje do mcs_incydenty / mcs_obserwacje / badge.
+ *
+ * Szkielet sprawdz() (walidacja IP → cache → fixture → API → upsert)
+ * jest w {@see EnrichmentSerwisBaza}; tu tylko klient, konfiguracja
+ * klucza i mapowanie odpowiedzi.
  */
-class AbuseipdbSerwis
+class AbuseipdbSerwis extends EnrichmentSerwisBaza
 {
     private AbuseipdbClient $client;
-    private EnrichmentAbuseipdbModel $model;
-    private int $cacheTtl;
-    private string $fixturePath;
 
     public function __construct(
         ?AbuseipdbClient $client = null,
@@ -21,11 +22,14 @@ class AbuseipdbSerwis
         ?int $cacheTtl = null,
         ?string $fixturePath = null,
     ) {
-        $this->client      = $client ?? AbuseipdbClient::fromEnv();
-        $this->model       = $model ?? model(EnrichmentAbuseipdbModel::class);
-        $ttl               = $cacheTtl ?? \App\Libraries\OpcjeMcs::int('mcs.abuseipdb.cacheTtl');
-        $this->cacheTtl    = max(0, $ttl);
-        $this->fixturePath = $fixturePath ?? trim((string) env('mcs.abuseipdb.fixturePath', ''));
+        $this->client = $client ?? AbuseipdbClient::fromEnv();
+        $this->ustawCache(
+            $model ?? model(EnrichmentAbuseipdbModel::class),
+            $cacheTtl,
+            $fixturePath,
+            'mcs.abuseipdb.cacheTtl',
+            'mcs.abuseipdb.fixturePath',
+        );
     }
 
     public function hasApiKey(): bool
@@ -33,174 +37,61 @@ class AbuseipdbSerwis
         return $this->client->hasApiKey();
     }
 
-    public function hasFixture(): bool
+    protected function maZrodlo(): bool
     {
-        return $this->fixturePath !== '' && is_readable($this->fixturePath);
+        return $this->hasApiKey();
     }
 
-    public function tryb(): string
+    protected function brakZrodlaKomunikat(): string
     {
-        if ($this->hasFixture()) {
-            return 'fixture';
-        }
-        if ($this->hasApiKey()) {
-            return 'api';
-        }
-
-        return 'brak_klucza';
+        return 'Brak mcs.abuseipdb.apiKey — ustaw w .env albo mcs.abuseipdb.fixturePath do dry-run.';
     }
 
     /**
-     * Podgląd ważnego cache bez wywołania API / fixture.
+     * @param array<string, mixed> $kontekst
      *
-     * @return array<string, mixed>|null
-     */
-    public function podgladCache(string $ip): ?array
-    {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return null;
-        }
-
-        $cache = $this->model->znajdzPoIp($ip);
-        if (! $this->model->cacheWazny($cache, $this->cacheTtl) || ! is_array($cache)) {
-            return null;
-        }
-
-        return $this->wierszDoWyniku($cache);
-    }
-
-    /**
-     * @return array{
-     *   ok:bool,
-     *   z_cache:bool,
-     *   tryb:string,
-     *   blad:?string,
-     *   ip:string,
-     *   wynik:?array<string,mixed>
-     * }
-     */
-    public function sprawdz(string $ip, bool $force = false): array
-    {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => $this->tryb(),
-                'blad'    => 'Wymagany prawidłowy adres IP.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        if (! $force) {
-            $cache = $this->model->znajdzPoIp($ip);
-            if ($this->model->cacheWazny($cache, $this->cacheTtl)) {
-                return [
-                    'ok'      => true,
-                    'z_cache' => true,
-                    'tryb'    => 'cache',
-                    'blad'    => null,
-                    'ip'      => $ip,
-                    'wynik'   => $this->wierszDoWyniku($cache),
-                ];
-            }
-        }
-
-        if ($this->hasFixture()) {
-            return $this->zFixture($ip);
-        }
-
-        if (! $this->hasApiKey()) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'brak_klucza',
-                'blad'    => 'Brak mcs.abuseipdb.apiKey — ustaw w .env albo mcs.abuseipdb.fixturePath do dry-run.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        $resp = $this->client->checkIp($ip);
-        if (! $resp['ok'] || ! is_array($resp['data'])) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'api',
-                'blad'    => $resp['error'] !== '' ? $resp['error'] : 'Błąd API AbuseIPDB',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        $data = $resp['data']['data'] ?? null;
-        if (! is_array($data)) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'api',
-                'blad'    => 'Nieoczekiwana odpowiedź API (brak data.data).',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        $wiersz = $this->znormalizujIZapisz($ip, $data, 'api');
-
-        return [
-            'ok'      => true,
-            'z_cache' => false,
-            'tryb'    => 'api',
-            'blad'    => null,
-            'ip'      => $ip,
-            'wynik'   => $this->wierszDoWyniku($wiersz),
-        ];
-    }
-
-    /**
      * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
      */
-    private function zFixture(string $ip): array
+    protected function zFixture(string $ip, array $kontekst): array
     {
-        $raw = file_get_contents($this->fixturePath);
-        if ($raw === false) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'fixture',
-                'blad'    => 'Nie można odczytać fixturePath.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
+        $raw = $this->wczytajFixtureRaw();
+        if ($raw === null) {
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Nie można odczytać fixturePath.', $ip, null);
         }
 
         $json = json_decode($raw, true);
         $data = is_array($json) ? ($json['data'] ?? $json) : null;
         if (! is_array($data)) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'fixture',
-                'blad'    => 'Fixture JSON nie zawiera obiektu data.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Fixture JSON nie zawiera obiektu data.', $ip, null);
         }
 
         // Dry-run: nadpisz IP z żądania, żeby cache był spójny z argumentem CLI/API.
         $data['ipAddress'] = $ip;
-        $wiersz            = $this->znormalizujIZapisz($ip, $data, 'fixture');
+        $wiersz            = $this->znormalizujIZapisz($ip, $data, $this->trybFixture());
 
-        return [
-            'ok'      => true,
-            'z_cache' => false,
-            'tryb'    => 'fixture',
-            'blad'    => null,
-            'ip'      => $ip,
-            'wynik'   => $this->wierszDoWyniku($wiersz),
-        ];
+        return $this->odpowiedz(true, false, $this->trybFixture(), null, $ip, $this->wierszDoWyniku($wiersz));
+    }
+
+    /**
+     * @param array<string, mixed> $kontekst
+     *
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>}
+     */
+    protected function zZrodla(string $ip, array $kontekst): array
+    {
+        $resp = $this->client->checkIp($ip);
+        if (! $resp['ok'] || ! is_array($resp['data'])) {
+            return $this->odpowiedz(false, false, $this->trybZrodla(), $resp['error'] !== '' ? $resp['error'] : 'Błąd API AbuseIPDB', $ip, null);
+        }
+
+        $data = $resp['data']['data'] ?? null;
+        if (! is_array($data)) {
+            return $this->odpowiedz(false, false, $this->trybZrodla(), 'Nieoczekiwana odpowiedź API (brak data.data).', $ip, null);
+        }
+
+        $wiersz = $this->znormalizujIZapisz($ip, $data, $this->trybZrodla());
+
+        return $this->odpowiedz(true, false, $this->trybZrodla(), null, $ip, $this->wierszDoWyniku($wiersz));
     }
 
     /**
@@ -210,11 +101,11 @@ class AbuseipdbSerwis
      */
     private function znormalizujIZapisz(string $ip, array $data, string $zrodlo): array
     {
-        $teraz = gmdate('Y-m-d H:i:sP');
-        $last  = $data['lastReportedAt'] ?? null;
+        $teraz  = gmdate('Y-m-d H:i:sP');
+        $last   = $data['lastReportedAt'] ?? null;
         $lastAt = null;
         if (is_string($last) && $last !== '') {
-            $ts = strtotime($last);
+            $ts     = strtotime($last);
             $lastAt = $ts !== false ? gmdate('Y-m-d H:i:sP', $ts) : null;
         }
 
@@ -233,10 +124,7 @@ class AbuseipdbSerwis
             'checked_at'             => $teraz,
         ];
 
-        $this->model->upsertDlaIp($ip, $wiersz);
-        $zapisany = $this->model->znajdzPoIp($ip);
-
-        return is_array($zapisany) ? $zapisany : array_merge(['ip' => $ip], $wiersz);
+        return $this->zapiszWiersz($ip, $wiersz);
     }
 
     /**
@@ -244,7 +132,7 @@ class AbuseipdbSerwis
      *
      * @return array<string, mixed>
      */
-    private function wierszDoWyniku(array $wiersz): array
+    protected function wierszDoWyniku(array $wiersz): array
     {
         $raw = $wiersz['raw_json'] ?? null;
         if (is_string($raw)) {

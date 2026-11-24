@@ -17,8 +17,12 @@ use Config\Database;
 /**
  * Skan DNSBL AS: LMS codziennie, pełne AS w dniu asScanWeekday.
  * Zapisuje mcs_dnsbl_wiersze + enrichment + IncydentZapis przy listed.
+ *
+ * Szkielet sprawdz() (walidacja IP → tylko IPv4 → cache → fixture → DNS
+ * → upsert) jest w {@see EnrichmentSerwisBaza}; tu tylko klient DNSBL,
+ * wybór zakresu skanu i mapowanie odpowiedzi (+ incydenty przy force).
  */
-class DnsblSerwis
+class DnsblSerwis extends EnrichmentSerwisBaza
 {
     private DnsblClient $client;
     private EnrichmentDnsblModel $enrichment;
@@ -29,8 +33,6 @@ class DnsblSerwis
     private IncydentZapis $zapis;
     private WagaV1 $waga;
     private BaseConnection $db;
-    private int $cacheTtl;
-    private string $fixturePath;
     private int $asScanWeekday;
 
     public function __construct(
@@ -56,9 +58,7 @@ class DnsblSerwis
         $this->zapis          = $zapis ?? new IncydentZapis();
         $this->waga           = $waga ?? new WagaV1();
         $this->db             = $db ?? Database::connect();
-        $ttl                  = $cacheTtl ?? \App\Libraries\OpcjeMcs::int('mcs.dnsbl.cacheTtl');
-        $this->cacheTtl       = max(0, $ttl);
-        $this->fixturePath    = $fixturePath ?? trim((string) env('mcs.dnsbl.fixturePath', ''));
+        $this->ustawCache($this->enrichment, $cacheTtl, $fixturePath, 'mcs.dnsbl.cacheTtl', 'mcs.dnsbl.fixturePath');
         if ($asScanWeekday !== null) {
             $weekday = $asScanWeekday;
         } else {
@@ -71,18 +71,28 @@ class DnsblSerwis
         $this->asScanWeekday  = max(0, min(6, $weekday));
     }
 
-    public function hasFixture(): bool
+    protected function trybZrodla(): string
     {
-        return $this->fixturePath !== '' && is_readable($this->fixturePath);
+        return 'dns';
     }
 
-    public function tryb(): string
+    protected function walidujIp(string $ip): ?string
     {
-        if ($this->hasFixture()) {
-            return 'fixture';
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            return 'DNSBL obsługuje tylko IPv4.';
         }
 
-        return 'dns';
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $kontekst
+     *
+     * @return array<string, mixed>
+     */
+    protected function dodatkiCacheHit(array $kontekst): array
+    {
+        return ['incydenty' => 0];
     }
 
     /**
@@ -221,7 +231,7 @@ class DnsblSerwis
         $ok     = 0;
 
         foreach ($ips as $ip) {
-            $wynik = $this->sprawdzIZapisz($ip, true, $zakres, $importId);
+            $wynik = $this->sprawdz($ip, true, $zakres, $importId);
             if (! $wynik['ok']) {
                 continue;
             }
@@ -243,24 +253,6 @@ class DnsblSerwis
     }
 
     /**
-     * @return array<string, mixed>|null
-     */
-    public function podgladCache(string $ip): ?array
-    {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return null;
-        }
-
-        $cache = $this->enrichment->znajdzPoIp($ip);
-        if (! $this->enrichment->cacheWazny($cache, $this->cacheTtl) || ! is_array($cache)) {
-            return null;
-        }
-
-        return $this->wierszDoWyniku($cache);
-    }
-
-    /**
      * Lookup pojedynczego IP (panel / CLI). Przy force zapisuje też wiersze źródła + incydenty.
      *
      * @return array{
@@ -275,123 +267,55 @@ class DnsblSerwis
      */
     public function sprawdz(string $ip, bool $force = false, string $zakres = 'lms', ?int $importId = null): array
     {
-        return $this->sprawdzIZapisz($ip, $force, $zakres, $importId);
+        return $this->szkieletSprawdz($ip, $force, ['zakres' => $zakres, 'import_id' => $importId]);
     }
 
     /**
-     * @return array{
-     *   ok:bool,
-     *   z_cache:bool,
-     *   tryb:string,
-     *   blad:?string,
-     *   ip:string,
-     *   wynik:?array<string,mixed>,
-     *   incydenty?:int
-     * }
-     */
-    private function sprawdzIZapisz(string $ip, bool $force, string $zakres, ?int $importId): array
-    {
-        $ip = trim($ip);
-        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => $this->tryb(),
-                'blad'    => 'Wymagany prawidłowy adres IP.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => $this->tryb(),
-                'blad'    => 'DNSBL obsługuje tylko IPv4.',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        if (! $force) {
-            $cache = $this->enrichment->znajdzPoIp($ip);
-            if ($this->enrichment->cacheWazny($cache, $this->cacheTtl)) {
-                return [
-                    'ok'      => true,
-                    'z_cache' => true,
-                    'tryb'    => 'cache',
-                    'blad'    => null,
-                    'ip'      => $ip,
-                    'wynik'   => $this->wierszDoWyniku($cache),
-                    'incydenty'=> 0,
-                ];
-            }
-        }
-
-        if ($this->hasFixture()) {
-            return $this->zFixture($ip, $zakres, $importId);
-        }
-
-        $resp = $this->client->checkIp($ip);
-        if (! $resp['ok'] || ! is_array($resp['data'])) {
-            return [
-                'ok'      => false,
-                'z_cache' => false,
-                'tryb'    => 'dns',
-                'blad'    => $resp['error'] !== '' ? $resp['error'] : 'Błąd DNS DNSBL',
-                'ip'      => $ip,
-                'wynik'   => null,
-            ];
-        }
-
-        $inc = $this->zapiszWynik($ip, $resp['data'], 'dns', $zakres, $importId);
-
-        return [
-            'ok'       => true,
-            'z_cache'  => false,
-            'tryb'     => 'dns',
-            'blad'     => null,
-            'ip'       => $ip,
-            'wynik'    => $this->wierszDoWyniku($this->enrichment->znajdzPoIp($ip) ?? []),
-            'incydenty'=> $inc,
-        ];
-    }
-
-    /**
+     * @param array<string, mixed> $kontekst ['zakres' => string, 'import_id' => ?int]
+     *
      * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>,incydenty?:int}
      */
-    private function zFixture(string $ip, string $zakres, ?int $importId): array
+    protected function zFixture(string $ip, array $kontekst): array
     {
-        $raw = file_get_contents($this->fixturePath);
-        if ($raw === false) {
-            return [
-                'ok' => false, 'z_cache' => false, 'tryb' => 'fixture',
-                'blad' => 'Nie można odczytać fixturePath.', 'ip' => $ip, 'wynik' => null,
-            ];
+        $zakres   = (string) ($kontekst['zakres'] ?? 'lms');
+        $importId = isset($kontekst['import_id']) ? (int) $kontekst['import_id'] : null;
+
+        $raw = $this->wczytajFixtureRaw();
+        if ($raw === null) {
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Nie można odczytać fixturePath.', $ip, null);
         }
         $json = json_decode($raw, true);
         if (! is_array($json)) {
-            return [
-                'ok' => false, 'z_cache' => false, 'tryb' => 'fixture',
-                'blad' => 'Fixture DNSBL nie jest poprawnym JSON.', 'ip' => $ip, 'wynik' => null,
-            ];
+            return $this->odpowiedz(false, false, $this->trybFixture(), 'Fixture DNSBL nie jest poprawnym JSON.', $ip, null);
         }
 
         $data = [
             'listed_any' => (bool) ($json['listed_any'] ?? false),
             'listy'      => is_array($json['listy'] ?? null) ? $json['listy'] : [],
         ];
-        $inc = $this->zapiszWynik($ip, $data, 'fixture', $zakres, $importId);
+        $inc = $this->zapiszWynik($ip, $data, $this->trybFixture(), $zakres, $importId);
 
-        return [
-            'ok'       => true,
-            'z_cache'  => false,
-            'tryb'     => 'fixture',
-            'blad'     => null,
-            'ip'       => $ip,
-            'wynik'    => $this->wierszDoWyniku($this->enrichment->znajdzPoIp($ip) ?? []),
-            'incydenty'=> $inc,
-        ];
+        return $this->odpowiedz(true, false, $this->trybFixture(), null, $ip, $this->wierszDoWyniku($this->enrichment->znajdzPoIp($ip) ?? []), ['incydenty' => $inc]);
+    }
+
+    /**
+     * @param array<string, mixed> $kontekst ['zakres' => string, 'import_id' => ?int]
+     *
+     * @return array{ok:bool,z_cache:bool,tryb:string,blad:?string,ip:string,wynik:?array<string,mixed>,incydenty?:int}
+     */
+    protected function zZrodla(string $ip, array $kontekst): array
+    {
+        $zakres   = (string) ($kontekst['zakres'] ?? 'lms');
+        $importId = isset($kontekst['import_id']) ? (int) $kontekst['import_id'] : null;
+
+        $resp = $this->client->checkIp($ip);
+        if (! $resp['ok'] || ! is_array($resp['data'])) {
+            return $this->odpowiedz(false, false, $this->trybZrodla(), $resp['error'] !== '' ? $resp['error'] : 'Błąd DNS DNSBL', $ip, null);
+        }
+
+        $inc = $this->zapiszWynik($ip, $resp['data'], $this->trybZrodla(), $zakres, $importId);
+
+        return $this->odpowiedz(true, false, $this->trybZrodla(), null, $ip, $this->wierszDoWyniku($this->enrichment->znajdzPoIp($ip) ?? []), ['incydenty' => $inc]);
     }
 
     /**
@@ -598,7 +522,7 @@ class DnsblSerwis
      *
      * @return array<string, mixed>
      */
-    private function wierszDoWyniku(array $wiersz): array
+    protected function wierszDoWyniku(array $wiersz): array
     {
         $listy = $wiersz['listy_json'] ?? [];
         if (is_string($listy)) {
