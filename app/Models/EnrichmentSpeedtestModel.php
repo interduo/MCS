@@ -315,6 +315,10 @@ class EnrichmentSpeedtestModel extends Model
         $dzien  = $this->sqlDzien('zaobserwowano_at');
         $params = [];
         $where  = $this->sqlWhere($odIso, $grupyCidr, $cidrContains, $params);
+        // Na Postgre dzien to date — porównanie date <> '' kończy się błędem PG, guard tylko dla platform tekstowych.
+        $guardDzien = $this->db->getPlatform() === 'Postgre'
+            ? 'dzien IS NOT NULL'
+            : "dzien IS NOT NULL AND dzien <> ''";
         $sql    = "SELECT dzien,
                 COUNT(*) AS liczba_testow,
                 AVG(download_kbps) AS avg_download_kbps,
@@ -324,7 +328,7 @@ class EnrichmentSpeedtestModel extends Model
                 SELECT {$dzien} AS dzien, download_kbps, upload_kbps, latency_ms
                 FROM {$t}{$where}
             ) AS pod
-            WHERE dzien IS NOT NULL AND dzien <> ''
+            WHERE {$guardDzien}
             GROUP BY dzien
             ORDER BY dzien DESC";
 

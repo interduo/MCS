@@ -187,36 +187,58 @@ class Dashboard extends BaseController
     {
         $filtry = SpeedtestSerwis::parsujFiltry($this->request->getGet() ?? []);
         $serwis = new SpeedtestSerwis();
-        try {
-            $kpi      = $serwis->kpi($filtry['okno'], $filtry['cidr'], $filtry['tylko_as']);
-            $agregaty = $serwis->agregaty($filtry['okno'], $filtry['cidr'], $filtry['sort'], $filtry['tylko_as']);
-            $dzienne  = $serwis->agregatyDzienne($filtry['okno'], $filtry['cidr'], $filtry['tylko_as']);
-            $anomalie = $serwis->anomalie($filtry);
-        } catch (\Throwable) {
-            $kpi = [
-                'okno_dni'          => $filtry['okno'],
-                'liczba_testow'     => 0,
-                'liczba_cidr'       => 0,
-                'avg_download_kbps' => null,
-                'p50_download_kbps' => null,
-                'avg_upload_kbps'   => null,
-                'p50_upload_kbps'   => null,
-                'avg_latency_ms'    => null,
-                'p50_latency_ms'    => null,
-            ];
-            $agregaty = [];
-            $dzienne  = [];
-            $anomalie = [
-                'liczba_powyzej'    => 0,
-                'liczba_pasujacych' => 0,
-                'top_testy'         => [],
-                'cidr_peaki'        => [],
-            ];
+
+        // Osobne try/catch per sekcja (issue #468): jedna padnięta sekcja nie może zerować pozostałych.
+        $pustyKpi = [
+            'okno_dni'          => $filtry['okno'],
+            'liczba_testow'     => 0,
+            'liczba_cidr'       => 0,
+            'avg_download_kbps' => null,
+            'p50_download_kbps' => null,
+            'avg_upload_kbps'   => null,
+            'p50_upload_kbps'   => null,
+            'avg_latency_ms'    => null,
+            'p50_latency_ms'    => null,
+        ];
+        $pusteAnomalie = [
+            'liczba_powyzej'    => 0,
+            'liczba_pasujacych' => 0,
+            'top_testy'         => [],
+            'cidr_peaki'        => [],
+        ];
+
+        $kpi      = $pustyKpi;
+        $agregaty = [];
+        $dzienne  = [];
+        $anomalie = $pusteAnomalie;
+        $blad     = [];
+        foreach ([
+            'KPI'          => fn () => $serwis->kpi($filtry['okno'], $filtry['cidr'], $filtry['tylko_as']),
+            'agregaty /24' => fn () => $serwis->agregaty($filtry['okno'], $filtry['cidr'], $filtry['sort'], $filtry['tylko_as']),
+            'trend dzienny' => fn () => $serwis->agregatyDzienne($filtry['okno'], $filtry['cidr'], $filtry['tylko_as']),
+            'anomalie'     => fn () => $serwis->anomalie($filtry),
+        ] as $nazwa => $wywolanie) {
+            try {
+                $wynik = $wywolanie();
+                if ($nazwa === 'KPI') {
+                    $kpi = is_array($wynik) ? $wynik : $pustyKpi;
+                } elseif ($nazwa === 'agregaty /24') {
+                    $agregaty = is_array($wynik) ? $wynik : [];
+                } elseif ($nazwa === 'trend dzienny') {
+                    $dzienne = is_array($wynik) ? $wynik : [];
+                } else {
+                    $anomalie = is_array($wynik) ? $wynik : $pusteAnomalie;
+                }
+            } catch (\Throwable) {
+                $blad[] = $nazwa;
+            }
         }
+        $blad = $blad === [] ? null : 'Nie udało się pobrać sekcji: ' . implode(', ', $blad) . '.';
 
         return view('dashboard/speedtest', $this->daneWidoku('speedtest', [
             'filtry'   => $filtry,
             'okno'     => $filtry['okno'],
+            'blad'     => $blad,
             'kpi'      => $kpi,
             'agregaty' => $agregaty,
             'dzienne'  => $dzienne,
