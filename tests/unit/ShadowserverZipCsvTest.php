@@ -41,16 +41,26 @@ final class ShadowserverZipCsvTest extends CIUnitTestCase
 
     public function testPomijaZbytDuzyZalacznik(): void
     {
-        $plugin = new Plugin();
-        $ref    = new ReflectionMethod(Plugin::class, 'wyciagnijCsvZZalacznika');
-        $ref->setAccessible(true);
+        // Limit rozmiaru załącznika konfigurowalny (issue #453): mcs.import.maxPlikMb.
+        $_ENV['mcs.import.maxPlikMb']    = '1';
+        $_SERVER['mcs.import.maxPlikMb'] = '1';
+        \App\Libraries\OpcjeMcs::resetuj();
 
-        $wynik = $ref->invoke($plugin, [
-            'filename' => 'duzy.csv',
-            'mime'     => 'text/csv',
-            'tresc'    => str_repeat('a', 20 * 1024 * 1024 + 1),
-        ]);
+        try {
+            $plugin = new Plugin();
+            $ref    = new ReflectionMethod(Plugin::class, 'wyciagnijCsvZZalacznika');
+            $ref->setAccessible(true);
 
-        $this->assertNull($wynik);
+            $wynik = $ref->invoke($plugin, [
+                'filename' => 'duzy.csv',
+                'mime'     => 'text/csv',
+                'tresc'    => str_repeat('a', 2 * 1024 * 1024),
+            ]);
+
+            $this->assertNull($wynik);
+        } finally {
+            unset($_ENV['mcs.import.maxPlikMb'], $_SERVER['mcs.import.maxPlikMb']);
+            \App\Libraries\OpcjeMcs::resetuj();
+        }
     }
 }

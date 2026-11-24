@@ -143,6 +143,19 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('Spoofer: nie mozna odczytac pliku ' . $sciezka);
         }
 
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'Spoofer');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                null,
+                ['tryb' => 'fixture', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
+
         $tresc    = (string) file_get_contents($sciezka);
         $sessions = $this->parser->parsujJson($tresc);
         $asn      = $this->resolveAsn();
@@ -233,6 +246,8 @@ class Plugin implements SourcePluginInterface
 
                 return 0;
             }
+
+            ImportLimity::sprawdzLiczbeWierszy('Spoofer', count($sessions));
 
             $mapped  = $this->parser->mapujListe($sessions, $asn);
             $licznik = 0;

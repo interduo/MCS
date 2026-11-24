@@ -3,7 +3,9 @@
 namespace McsPluginy\wazuh;
 
 use App\Libraries\ImportKoperta;
+use App\Libraries\ImportLimity;
 use App\Libraries\IncydentZapis;
+use App\Libraries\PrzekroczonyLimitImportu;
 use App\Libraries\PluginOpisPolaczenia;
 use App\Libraries\Siec\As198050Matcher;
 use App\Libraries\SourcePluginInterface;
@@ -60,6 +62,18 @@ class Plugin implements SourcePluginInterface
             if ($fixture !== '') {
                 if (! is_readable($fixture)) {
                     throw new RuntimeException('Wazuh: nie mozna odczytac pliku ' . $fixture);
+                }
+                try {
+                    ImportLimity::sprawdzPlik($fixture, 'Wazuh');
+                } catch (PrzekroczonyLimitImportu $e) {
+                    $this->koperta->oznaczBlad(
+                        $this->zrodlo(),
+                        hash_file('sha256', $fixture) ?: null,
+                        'fixture:' . basename($fixture),
+                        ['tryb' => 'fixture', 'plik' => basename($fixture)],
+                        $e->getMessage(),
+                    );
+                    throw $e;
                 }
                 $s = $this->importujJson((string) file_get_contents($fixture), 'fixture:' . basename($fixture));
             } else {
@@ -126,8 +140,22 @@ class Plugin implements SourcePluginInterface
      */
     public function importujJson(string $json, string $idWiadomosci): array
     {
+        // Limity importu (issue #453): rozmiar eksportu i liczba wierszy — odrzucenie = `blad`.
+        try {
+            ImportLimity::sprawdzTresc($json, 'Wazuh', $idWiadomosci);
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad($this->zrodlo(), hash('sha256', $json), $idWiadomosci, ['id_wiadomosci' => $idWiadomosci], $e->getMessage());
+            throw $e;
+        }
+
         $eksport = $this->parser->parsujEksport($json);
-        $as      = $this->as ?? new As198050Matcher();
+        try {
+            ImportLimity::sprawdzLiczbeWierszy('Wazuh', count($eksport['wiersze']));
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad($this->zrodlo(), hash('sha256', $json), $idWiadomosci, ['id_wiadomosci' => $idWiadomosci], $e->getMessage());
+            throw $e;
+        }
+        $as = $this->as ?? new As198050Matcher();
 
         $nasze = [];
         foreach ($eksport['wiersze'] as $w) {

@@ -158,6 +158,19 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('CERT N6: nie mozna odczytac pliku ' . $sciezka);
         }
 
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'CERT N6');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                null,
+                ['tryb' => 'fixture', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
+
         $tresc = (string) file_get_contents($sciezka);
 
         return $this->importujTresc(
@@ -246,6 +259,8 @@ class Plugin implements SourcePluginInterface
 
                 return 0;
             }
+
+            ImportLimity::sprawdzLiczbeWierszy('CERT N6', count($events));
 
             $licznik = 0;
             foreach ($events as $item) {

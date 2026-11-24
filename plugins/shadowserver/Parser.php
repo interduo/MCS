@@ -2,11 +2,17 @@
 
 namespace McsPluginy\shadowserver;
 
+use App\Libraries\ImportLimity;
+use App\Libraries\PrzekroczonyLimitImportu;
+
 /**
  * Parser CSV Shadowserver — mapowanie po nazwach nagłówków (nie po pozycji kolumn).
  *
  * Fixture / próbki syntetyczne do czasu prawdziwych raportów z Waszej skrzynki.
  * Dedup (logiczny): ip + tag + port + protokol.
+ *
+ * Duże raporty (setki tysięcy wierszy) czytamy strumieniowo: parsujCsvStrumien()
+ * (fgetcsv w pętli, issue #453) — bez wczytywania całego pliku do pamięci.
  */
 final class Parser
 {
@@ -24,27 +30,57 @@ final class Parser
      */
     public function parsujCsv(string $tresc): array
     {
-        $tresc = preg_replace("/^\xEF\xBB\xBF/", '', $tresc) ?? $tresc;
-        $wiersze = preg_split("/\r\n|\n|\r/", trim($tresc)) ?: [];
-        if ($wiersze === [] || $wiersze[0] === '') {
+        $fp = fopen('php://temp', 'r+');
+        if ($fp === false) {
             return [];
         }
+        fwrite($fp, $tresc);
+        rewind($fp);
+        $wynik = iterator_to_array($this->parsujCsvStrumien($fp), false);
+        fclose($fp);
 
-        $naglowki = str_getcsv(array_shift($wiersze));
-        if ($naglowki === false || $naglowki === [null] || $naglowki === []) {
-            return [];
+        return $wynik;
+    }
+
+    /**
+     * Strumieniowy parser CSV (issue #453): fgetcsv w pętli — pamięć nie rośnie
+     * z rozmiarem raportu. Przekroczenie limitu wierszy (mcs.import.maxWierszy)
+     * rzuca PrzekroczonyLimitImportu, a import dostaje status `blad`.
+     *
+     * @param resource $fp otwarty strumień CSV (kursor na początku)
+     *
+     * @return \Generator<int, array{
+     *   ip: string,
+     *   port: ?int,
+     *   protokol: ?string,
+     *   tag: ?string,
+     *   severity: ?string,
+     *   timestamp: string,
+     *   klucz_dedupu: string,
+     *   raw: array<string, string>
+     * }>
+     */
+    public function parsujCsvStrumien($fp): \Generator
+    {
+        $maxWierszy = ImportLimity::maxWierszy();
+
+        $naglowki = fgetcsv($fp, null, ',', '"', '\\');
+        if (! is_array($naglowki) || $naglowki === [null]) {
+            return;
         }
-        $naglowki = array_map(static fn ($h) => strtolower(trim((string) $h)), $naglowki);
+        $naglowki[0] = preg_replace("/^\xEF\xBB\xBF/", '', (string) $naglowki[0]);
+        $naglowki    = array_map(static fn ($h) => strtolower(trim((string) $h)), $naglowki);
 
-        $wynik = [];
-        foreach ($wiersze as $linia) {
-            if (trim($linia) === '') {
-                continue;
+        $licznik = 0;
+        while (($pola = fgetcsv($fp, null, ',', '"', '\\')) !== false) {
+            if ($pola === [null]) {
+                continue; // pusta linia
             }
-            $pola = str_getcsv($linia);
-            if ($pola === false) {
-                continue;
+            $licznik++;
+            if ($licznik > $maxWierszy) {
+                throw new PrzekroczonyLimitImportu(ImportLimity::komunikatWiersze('Shadowserver', $maxWierszy));
             }
+
             $raw = [];
             foreach ($naglowki as $i => $nazwa) {
                 $raw[$nazwa] = isset($pola[$i]) ? trim((string) $pola[$i]) : '';
@@ -83,7 +119,7 @@ final class Parser
             $klucz = strtolower($ip) . '|' . strtolower((string) ($tag ?? ''))
                 . '|' . ($port ?? '') . '|' . strtolower((string) ($protokol ?? ''));
 
-            $wynik[] = [
+            yield [
                 'ip'            => $ip,
                 'port'          => $port,
                 'protokol'      => $protokol !== null ? strtolower($protokol) : null,
@@ -94,8 +130,6 @@ final class Parser
                 'raw'           => $raw,
             ];
         }
-
-        return $wynik;
     }
 
     /**

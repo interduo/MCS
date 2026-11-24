@@ -91,6 +91,21 @@ class ImportKoperta
     }
 
     /**
+     * Oznacza odrzucony import (np. limit rozmiaru/wierszy, issue #453) jako `blad`
+     * z czytelnym komunikatem — bez częściowego importu. Gdy ten payload był już
+     * zaimportowany ze statusem `ok` — nic nie zapisuje (rozpocznij zwraca null).
+     *
+     * @param array<string, mixed> $meta
+     */
+    public function oznaczBlad(string $zrodlo, ?string $checksum, ?string $idWiadomosci, array $meta, string $blad): void
+    {
+        $importId = $this->rozpocznij($zrodlo, $checksum, $idWiadomosci, $meta);
+        if ($importId !== null) {
+            $this->zakonczBlad($importId, $blad);
+        }
+    }
+
+    /**
      * @param array<string, mixed> $metaDodatek
      */
     public function zakonczOk(int $importId, array $metaDodatek = []): void

@@ -154,6 +154,19 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('Cloudflare Botnet: nie mozna odczytac pliku ' . $sciezka);
         }
 
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'Cloudflare Botnet');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                null,
+                ['tryb' => 'fixture', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
+
         $tresc   = (string) file_get_contents($sciezka);
         $entries = $this->parser->parsujJson($tresc);
 
@@ -253,6 +266,8 @@ class Plugin implements SourcePluginInterface
 
                 return 0;
             }
+
+            ImportLimity::sprawdzLiczbeWierszy('Cloudflare Botnet', count($entries));
 
             $licznik = 0;
             foreach ($entries as $entry) {

@@ -3,8 +3,10 @@
 namespace McsPluginy\snds;
 
 use App\Libraries\ImportKoperta;
+use App\Libraries\ImportLimity;
 use App\Libraries\IncydentZapis;
 use App\Libraries\PluginOpisPolaczenia;
+use App\Libraries\PrzekroczonyLimitImportu;
 use App\Libraries\SourcePluginInterface;
 use App\Libraries\WagaV1;
 use App\Models\PluginModel;
@@ -179,7 +181,7 @@ class Plugin implements SourcePluginInterface
     }
 
     /**
-     * Import jednego CSV (fixture).
+     * Import jednego CSV z pliku (fixture) — strumieniowo, z limitem rozmiaru (issue #453).
      */
     public function importujPlik(string $sciezka): int
     {
@@ -187,12 +189,33 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('SNDS: nie mozna odczytac pliku ' . $sciezka);
         }
 
-        $tresc = (string) file_get_contents($sciezka);
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'SNDS');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                null,
+                ['tryb' => 'plik', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
 
-        return $this->importujTrescCsv($tresc, hash('sha256', $tresc), null, [
-            'tryb' => 'plik',
-            'plik' => basename($sciezka),
-        ]);
+        $checksum = (string) hash_file('sha256', $sciezka);
+        $fp       = fopen($sciezka, 'rb');
+        if ($fp === false) {
+            throw new RuntimeException('SNDS: nie mozna otworzyc pliku ' . $sciezka);
+        }
+
+        try {
+            return $this->importujStrumienCsv($fp, $checksum, null, [
+                'tryb' => 'plik',
+                'plik' => basename($sciezka),
+            ]);
+        } finally {
+            fclose($fp);
+        }
     }
 
     /**
@@ -316,9 +339,42 @@ class Plugin implements SourcePluginInterface
     }
 
     /**
+     * Import CSV z treści w pamięci (HTTP DataKey) — przez strumień php://temp (issue #453).
+     *
      * @param array<string, mixed> $meta
      */
     private function importujTrescCsv(string $tresc, string $checksum, ?string $idWiadomosci, array $meta): int
+    {
+        try {
+            ImportLimity::sprawdzTresc($tresc, 'SNDS', (string) ($meta['date'] ?? ''));
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad($this->zrodlo(), $checksum, $idWiadomosci, $meta, $e->getMessage());
+            throw $e;
+        }
+
+        $fp = fopen('php://temp', 'r+');
+        if ($fp === false) {
+            throw new RuntimeException('SNDS: nie mozna otworzyc strumienia CSV');
+        }
+        fwrite($fp, $tresc);
+        rewind($fp);
+
+        try {
+            return $this->importujStrumienCsv($fp, $checksum, $idWiadomosci, $meta);
+        } finally {
+            fclose($fp);
+        }
+    }
+
+    /**
+     * Import CSV ze strumienia (issue #453): wiersze zapisywane paczkami po ROZMIAR_PACZKI
+     * w trakcie czytania — pamięć nie rośnie z rozmiarem pliku. Limit wierszy
+     * egzekwuje Parser::parsujCsvStrumien (PrzekroczonyLimitImportu → status `blad`).
+     *
+     * @param resource             $fp
+     * @param array<string, mixed> $meta
+     */
+    private function importujStrumienCsv($fp, string $checksum, ?string $idWiadomosci, array $meta): int
     {
         $importId = $this->koperta->rozpocznij($this->zrodlo(), $checksum, $idWiadomosci, $meta);
         if ($importId === null) {
@@ -328,18 +384,10 @@ class Plugin implements SourcePluginInterface
         $db = Database::connect();
 
         try {
-            $wiersze = $this->parser->parsujCsv($tresc);
-            if ($wiersze === []) {
-                $this->koperta->zakonczKwarantanna($importId, 'CSV SNDS bez poprawnych wierszy IP');
-
-                return 0;
-            }
-
-            // Zbiorczy zapis (issue #442): wiersze źródła paczkami (INSERT … RETURNING id),
-            // potem incydenty jednym zapiszWiele.
+            $licznik   = 0;
             $wierszeDb = [];
             $incydenty = [];
-            foreach ($wiersze as $w) {
+            foreach ($this->parser->parsujCsvStrumien($fp) as $w) {
                 $kategoria = $this->parser->kategoriaDlaWiersza($w);
                 $sygnaly   = [];
                 if (! empty($w['filtr'])) {
@@ -381,16 +429,22 @@ class Plugin implements SourcePluginInterface
                         'waga_meta'      => $wynikWagi,
                     ],
                 ];
-            }
 
-            foreach (array_chunk($wierszeDb, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI, true) as $paczka) {
-                $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_snds_wiersze', array_values($paczka));
-                foreach (array_keys($paczka) as $j => $i) {
-                    $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+                if (count($wierszeDb) >= \App\Libraries\IncydentZapis::ROZMIAR_PACZKI) {
+                    $licznik   += $this->zapiszPaczke($db, $wierszeDb, $incydenty);
+                    $wierszeDb = [];
+                    $incydenty = [];
                 }
             }
-            $this->zapis->zapiszWiele($incydenty);
-            $licznik = count($wiersze);
+            if ($wierszeDb !== []) {
+                $licznik += $this->zapiszPaczke($db, $wierszeDb, $incydenty);
+            }
+
+            if ($licznik === 0) {
+                $this->koperta->zakonczKwarantanna($importId, 'CSV SNDS bez poprawnych wierszy IP');
+
+                return 0;
+            }
 
             $this->koperta->zakonczOk($importId, ['wierszy' => $licznik]);
 
@@ -399,6 +453,25 @@ class Plugin implements SourcePluginInterface
             $this->koperta->zakonczBlad($importId, $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Jedna paczka strumienia (issue #442 + #453): zbiorczy INSERT wierszy źródła
+     * (INSERT … RETURNING id) + zapiszWiele incydentów — flush w trakcie czytania.
+     *
+     * @param \CodeIgniter\Database\BaseConnection $db
+     * @param list<array<string, mixed>>            $wierszeDb
+     * @param list<array<string, mixed>>            $incydenty
+     */
+    private function zapiszPaczke($db, array $wierszeDb, array $incydenty): int
+    {
+        $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_snds_wiersze', array_values($wierszeDb));
+        foreach (array_keys($wierszeDb) as $j => $i) {
+            $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+        }
+        $this->zapis->zapiszWiele($incydenty);
+
+        return count($wierszeDb);
     }
 
     /**

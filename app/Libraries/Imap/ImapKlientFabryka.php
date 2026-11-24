@@ -6,8 +6,10 @@ use RuntimeException;
 
 /**
  * Tworzy klienta IMAP dla źródła (prefiks env, np. shadowserver / play).
+ *
+ * Nie-final tylko po to, żeby testy mogły podstawić stub dlaZrodla() (issue #463).
  */
-final class ImapKlientFabryka
+class ImapKlientFabryka
 {
     /**
      * Prawdziwy klient (php-imap). Rzuca, gdy brak configu lub rozszerzenia.

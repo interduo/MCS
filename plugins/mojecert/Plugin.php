@@ -151,6 +151,19 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('MojeCert: nie mozna odczytac pliku ' . $sciezka);
         }
 
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'MojeCert');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                null,
+                ['tryb' => 'fixture', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
+
         $tresc = (string) file_get_contents($sciezka);
         $pakiet = $this->parser->parsujFixtureJson($tresc);
 
@@ -349,6 +362,8 @@ class Plugin implements SourcePluginInterface
 
                 return 0;
             }
+
+            ImportLimity::sprawdzLiczbeWierszy('MojeCert', count($results));
 
             $zebrane = [];
             foreach ($results as $row) {
