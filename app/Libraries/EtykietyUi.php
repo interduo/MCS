@@ -25,6 +25,7 @@ class EtykietyUi
         'speedtest'          => 'Speedtest',
         'wazuh'              => 'Wazuh',
         'spamhaus'           => 'Spamhaus DROP',
+        'threatfox'          => 'ThreatFox',
     ];
 
     /** @var array<string, string> */

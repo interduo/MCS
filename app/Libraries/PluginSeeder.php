@@ -66,6 +66,11 @@ class PluginSeeder
             'opis'   => 'Darmowe listy Spamhaus DROP, DROPv6 i ASN-DROP (JSON, raz na dobę), dopasowane lokalnie do as198050_cidry i ASN. Trafienie = incydent. Stan na /dashboard/spamhaus.',
         ],
         [
+            'zrodlo' => 'threatfox',
+            'nazwa'  => 'ThreatFox IOC',
+            'opis'   => 'IOC abuse.ch ThreatFox (get_iocs, ostatnie 1–7 dni, Auth-Key), dopasowane lokalnie do as198050_cidry. Tylko ioc_type ip/ip:port dają trafienie = incydent. Stan na /dashboard/threatfox.',
+        ],
+        [
             'zrodlo' => 'blocklist_de',
             'nazwa'  => 'blocklist.de',
             'opis'   => 'Listy ataków z 48 h (ssh, mail, bruteforcelogin, bots, strongips). Trafienie w prefiksach AS = incydent. Poza all.txt.',

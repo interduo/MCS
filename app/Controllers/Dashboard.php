@@ -468,6 +468,19 @@ class Dashboard extends BaseController
         return view('dashboard/spamhaus', $this->daneWidoku('spamhaus', ['blad' => $blad, 'd' => $d]));
     }
 
+    public function threatfox()
+    {
+        $blad = null;
+        try {
+            $d = (new \McsPluginy\threatfox\Widok())->dane();
+        } catch (\Throwable $e) {
+            $blad = 'Nie udało się odczytać danych ThreatFox (czy migracje są uruchomione?).';
+            $d    = [];
+        }
+
+        return view('dashboard/threatfox', $this->daneWidoku('threatfox', ['blad' => $blad, 'd' => $d]));
+    }
+
     /**
      * CSV ranking problematycznych IP — te same filtry co lista.
      */
@@ -856,6 +869,7 @@ class Dashboard extends BaseController
             'speedtest'         => 'Speedtest — MCS',
             'dnsbl'             => 'DNSBL AS — MCS',
             'spamhaus'          => 'Spamhaus DROP — MCS',
+            'threatfox'         => 'ThreatFox IOC — MCS',
             default             => 'Przegląd — MCS',
         };
 

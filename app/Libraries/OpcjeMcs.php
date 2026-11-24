@@ -271,6 +271,27 @@ final class OpcjeMcs
         ];
         $d['mcs.spamhaus.httpTimeout'] = $http('Spamhaus DROP', 30, null)['timeout'];
 
+        // ThreatFox (abuse.ch): IOC z ostatnich 1–7 dni, POST get_iocs z nagłówkiem Auth-Key.
+        $d['mcs.threatfox.authKey'] = [
+            'grupa'    => 'ThreatFox',
+            'etykieta' => 'Auth-Key abuse.ch',
+            'typ'      => 'secret',
+            'domyslna' => '',
+            'wzorzec'  => '/^\\S{8,256}$/',
+            'opis'     => 'Edycja: Wtyczki źródeł → ThreatFox → Klucz. Puste w DB = wartość z .env.',
+        ];
+        $d['mcs.threatfox.days'] = [
+            'grupa' => 'ThreatFox', 'etykieta' => 'IOC z ostatnich N dni (get_iocs)', 'typ' => 'int', 'domyslna' => '7', 'min' => 1, 'max' => 7,
+            'opis'  => 'API ThreatFox przyjmuje days 1..7. Starsze IOC wypadają z odpowiedzi i są zdejmowane.',
+        ];
+        $d['mcs.threatfox.interwalGodzin'] = [
+            'grupa' => 'ThreatFox', 'etykieta' => 'Pobieranie co N godzin (+ losowa minuta)', 'typ' => 'int', 'domyslna' => '6', 'min' => 1, 'max' => 168,
+            'opis'  => 'Plugin i tak nigdy nie pobiera częściej niż raz na godzinę.',
+        ];
+        $d['mcs.threatfox.httpTimeout'] = $http('ThreatFox', 30, null)['timeout'];
+        // User-Agent (mcs.threatfox.userAgent) celowo tylko w .env — jak mcs.spamhaus.userAgent
+        // (klucz ze słowem „user” nie może być opcją WWW; patrz OpcjeMcsTest::testNieMaSekretowAniSciezekWWww).
+
         $d['mcs.blocklistDe.httpTimeout'] = $http('blocklist.de', 30, null)['timeout'];
         $d['mcs.greynoise.cacheTtl']      = $ttl('GreyNoise', 7 * self::DOBA);
         $d['mcs.greynoise.httpTimeout']   = $http('GreyNoise', 15, null)['timeout'];

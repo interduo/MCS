@@ -15,6 +15,7 @@ $routes->post('dashboard/dnsbl/skan', 'Dashboard::dnsblSkan');
 $routes->get('dashboard/dnsbl/status/(:num)', 'Dashboard::dnsblStatus/$1');
 $routes->get('dashboard/dnsbl/skan/(:num)/csv', 'Dashboard::dnsblSkanCsv/$1');
 $routes->get('dashboard/spamhaus', 'Dashboard::spamhaus');
+$routes->get('dashboard/threatfox', 'Dashboard::threatfox');
 $routes->get('dashboard/eksport.csv', 'Dashboard::eksportCsv');
 $routes->get('szukaj', 'Dashboard::szukaj');
 
