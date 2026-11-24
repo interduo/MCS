@@ -33,7 +33,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: mbstring, intl, curl, dom, xml, sqlite3, pdo_sqlite, pgsql, pdo_pgsql, imap
-          coverage: none
+          coverage: pcov
           cache: composer
 
       - name: Instalacja zależności z composer.lock
