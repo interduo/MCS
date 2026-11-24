@@ -2,6 +2,8 @@
 
 namespace McsPluginy\snds;
 
+use App\Libraries\ImportLimity;
+use App\Libraries\PrzekroczonyLimitImportu;
 use RuntimeException;
 
 /**
@@ -47,22 +49,191 @@ final class Parser
      */
     public function parsujCsv(string $tresc): array
     {
-        $tresc = preg_replace("/^\xEF\xBB\xBF/", '', $tresc) ?? $tresc;
-        $linie = preg_split("/\r\n|\n|\r/", trim($tresc)) ?: [];
-        if ($linie === [] || $linie[0] === '') {
+        $fp = fopen('php://temp', 'r+');
+        if ($fp === false) {
             return [];
         }
+        fwrite($fp, $tresc);
+        rewind($fp);
+        $wynik = iterator_to_array($this->parsujCsvStrumien($fp), false);
+        fclose($fp);
 
-        $pierwsza = $this->pierwszaNiepusta($linie);
-        if ($pierwsza === null) {
-            return [];
+        return $wynik;
+    }
+
+    /**
+     * Strumieniowy parser CSV (issue #453): fgetcsv w pętli — pamięć nie rośnie
+     * z rozmiarem pliku. Przekroczenie limitu wierszy (mcs.import.maxWierszy)
+     * rzuca PrzekroczonyLimitImportu, a import dostaje status `blad`.
+     *
+     * @param resource $fp otwarty strumień CSV (kursor na początku)
+     *
+     * @return \Generator<int, array{
+     *   ip: string,
+     *   filtr: ?string,
+     *   timestamp: string,
+     *   klucz_dedupu: string,
+     *   complaint_rate: ?string,
+     *   trap_hits: ?int,
+     *   raw: array<string, string>
+     * }>
+     */
+    public function parsujCsvStrumien($fp): \Generator
+    {
+        $maxWierszy = ImportLimity::maxWierszy();
+
+        $pierwszy = fgetcsv($fp, null, ',', '"', '\\');
+        if (! is_array($pierwszy) || $pierwszy === [null]) {
+            return;
+        }
+        $pierwszy[0] = preg_replace("/^\xEF\xBB\xBF/", '', (string) ($pierwszy[0] ?? ''));
+
+        if ($this->poleWygladaNaIpDataKey((string) $pierwszy[0])) {
+            // tryb pozycyjny (DataKey, bez nagłówka): pierwszy rekord to już dane
+            foreach ($this->czytajWierszeCsv($fp, $pierwszy, $maxWierszy) as $pola) {
+                $wiersz = $this->zlozWierszPozycyjny($pola);
+                if ($wiersz !== null) {
+                    yield $wiersz;
+                }
+            }
+
+            return;
         }
 
-        if ($this->liniaWygladaNaWierszDataKey($pierwsza)) {
-            return $this->parsujPozycyjnie($linie);
+        $naglowki = array_map(static fn ($h) => strtolower(trim((string) $h)), $pierwszy);
+        foreach ($this->czytajWierszeCsv($fp, null, $maxWierszy) as $pola) {
+            $wiersz = $this->zlozWierszPoNaglowkach($naglowki, $pola);
+            if ($wiersz !== null) {
+                yield $wiersz;
+            }
+        }
+    }
+
+    /**
+     * Czyta surowe wiersze CSV ze strumienia z egzekwowanym limitem liczby rekordów.
+     *
+     * @param resource                          $fp
+     * @param array<int, string|null>|null       $pierwszy pierwszy rekord, gdy caller już go odczytał
+     *
+     * @return \Generator<int, array<int, string|null>>
+     */
+    private function czytajWierszeCsv($fp, ?array $pierwszy, int $maxWierszy): \Generator
+    {
+        $licznik = 0;
+        $oczekujace = $pierwszy !== null ? [$pierwszy] : [];
+        while (true) {
+            if ($oczekujace === []) {
+                $pola = fgetcsv($fp, null, ',', '"', '\\');
+                if ($pola === false) {
+                    return;
+                }
+                $oczekujace = [$pola];
+            }
+            foreach ($oczekujace as $pola) {
+                if ($pola === [null]) {
+                    continue; // pusta linia
+                }
+                $licznik++;
+                if ($licznik > $maxWierszy) {
+                    throw new PrzekroczonyLimitImportu(ImportLimity::komunikatWiersze('SNDS', $maxWierszy));
+                }
+                yield $pola;
+            }
+            $oczekujace = [];
+        }
+    }
+
+    private function poleWygladaNaIpDataKey(string $pole): bool
+    {
+        return (bool) preg_match('/^\d+\.\d+\.\d+\.\d+$/', trim($pole));
+    }
+
+    /**
+     * @param array<int, string|null> $data
+     *
+     * @return array{
+     *   ip: string,
+     *   filtr: ?string,
+     *   timestamp: string,
+     *   klucz_dedupu: string,
+     *   complaint_rate: ?string,
+     *   trap_hits: ?int,
+     *   raw: array<string, string>
+     * }|null
+     */
+    private function zlozWierszPozycyjny(array $data): ?array
+    {
+        $liczba = count($data);
+        if ($liczba !== 13 && $liczba !== 14) {
+            throw new RuntimeException(
+                'SNDS: nieprawidlowa liczba kolumn (oczekiwano 13 lub 14, jest '
+                . $liczba . ').',
+            );
+        }
+        if ($liczba === 13) {
+            $data[] = '';
         }
 
-        return $this->parsujPoNaglowkach($linie);
+        $raw = [];
+        foreach (self::KOLUMNY_POZYCYJNE as $i => $nazwa) {
+            $raw[$nazwa] = trim((string) ($data[$i] ?? ''));
+        }
+
+        return $this->zlozWierszZRaw($raw, $raw['ip_address'], $raw['filter_result'], $raw['activity_period_start'], $raw['complaint_rate'], $raw['trap_hits']);
+    }
+
+    /**
+     * @param list<string>            $naglowki
+     * @param array<int, string|null> $pola
+     *
+     * @return array{
+     *   ip: string,
+     *   filtr: ?string,
+     *   timestamp: string,
+     *   klucz_dedupu: string,
+     *   complaint_rate: ?string,
+     *   trap_hits: ?int,
+     *   raw: array<string, string>
+     * }|null
+     */
+    private function zlozWierszPoNaglowkach(array $naglowki, array $pola): ?array
+    {
+        $raw = [];
+        foreach ($naglowki as $i => $nazwa) {
+            $raw[$nazwa] = isset($pola[$i]) ? trim((string) $pola[$i]) : '';
+        }
+
+        $ip = $this->wartosc($raw, [
+            'ip address',
+            'ip',
+            'ip_address',
+            'ipaddress',
+        ]);
+        $filtr = $this->wartosc($raw, [
+            'filter result',
+            'filter_result',
+            'filterresult',
+            'filtr',
+        ]);
+        $timestamp = $this->wartosc($raw, [
+            'activity period start',
+            'activity start',
+            'activity_period_start',
+            'date',
+            'timestamp',
+        ]);
+        $complaint = $this->wartosc($raw, [
+            'complaint rate',
+            'complaint_rate',
+            'complaintrate',
+        ]);
+        $trapRaw = $this->wartosc($raw, [
+            'trap hits',
+            'trap_hits',
+            'traphits',
+        ]);
+
+        return $this->zlozWierszZRaw($raw, $ip, $filtr, $timestamp, $complaint, $trapRaw);
     }
 
     /**
@@ -78,129 +249,6 @@ final class Parser
     public function liniaWygladaNaWierszDataKey(string $linia): bool
     {
         return (bool) preg_match('/^\d+\.\d+\.\d+\.\d+,/', $linia);
-    }
-
-    /**
-     * @param list<string> $linie
-     *
-     * @return list<array{
-     *   ip: string,
-     *   filtr: ?string,
-     *   timestamp: string,
-     *   klucz_dedupu: string,
-     *   complaint_rate: ?string,
-     *   trap_hits: ?int,
-     *   raw: array<string, string>
-     * }>
-     */
-    private function parsujPozycyjnie(array $linie): array
-    {
-        $wynik = [];
-        foreach ($linie as $linia) {
-            if (trim($linia) === '') {
-                continue;
-            }
-            $data = str_getcsv($linia);
-            if ($data === false) {
-                continue;
-            }
-            $liczba = count($data);
-            if ($liczba !== 13 && $liczba !== 14) {
-                throw new RuntimeException(
-                    'SNDS: nieprawidlowa liczba kolumn (oczekiwano 13 lub 14, jest '
-                    . $liczba . ').',
-                );
-            }
-            if ($liczba === 13) {
-                $data[] = '';
-            }
-
-            $raw = [];
-            foreach (self::KOLUMNY_POZYCYJNE as $i => $nazwa) {
-                $raw[$nazwa] = trim((string) ($data[$i] ?? ''));
-            }
-
-            $wiersz = $this->zlozWierszZRaw($raw, $raw['ip_address'], $raw['filter_result'], $raw['activity_period_start'], $raw['complaint_rate'], $raw['trap_hits']);
-            if ($wiersz !== null) {
-                $wynik[] = $wiersz;
-            }
-        }
-
-        return $wynik;
-    }
-
-    /**
-     * @param list<string> $linie
-     *
-     * @return list<array{
-     *   ip: string,
-     *   filtr: ?string,
-     *   timestamp: string,
-     *   klucz_dedupu: string,
-     *   complaint_rate: ?string,
-     *   trap_hits: ?int,
-     *   raw: array<string, string>
-     * }>
-     */
-    private function parsujPoNaglowkach(array $linie): array
-    {
-        $naglowki = str_getcsv(array_shift($linie));
-        if ($naglowki === false || $naglowki === [null] || $naglowki === []) {
-            return [];
-        }
-        $naglowki = array_map(static fn ($h) => strtolower(trim((string) $h)), $naglowki);
-
-        $wynik = [];
-        foreach ($linie as $linia) {
-            if (trim($linia) === '') {
-                continue;
-            }
-            $pola = str_getcsv($linia);
-            if ($pola === false) {
-                continue;
-            }
-            $raw = [];
-            foreach ($naglowki as $i => $nazwa) {
-                $raw[$nazwa] = isset($pola[$i]) ? trim((string) $pola[$i]) : '';
-            }
-
-            $ip = $this->wartosc($raw, [
-                'ip address',
-                'ip',
-                'ip_address',
-                'ipaddress',
-            ]);
-            $filtr = $this->wartosc($raw, [
-                'filter result',
-                'filter_result',
-                'filterresult',
-                'filtr',
-            ]);
-            $timestamp = $this->wartosc($raw, [
-                'activity period start',
-                'activity start',
-                'activity_period_start',
-                'date',
-                'timestamp',
-            ]);
-            $complaint = $this->wartosc($raw, [
-                'complaint rate',
-                'complaint_rate',
-                'complaintrate',
-            ]);
-            $trapRaw = $this->wartosc($raw, [
-                'trap hits',
-                'trap_hits',
-                'traphits',
-            ]);
-
-            $wiersz = $this->zlozWierszZRaw($raw, $ip, $filtr, $timestamp, $complaint, $trapRaw);
-            if ($wiersz !== null) {
-                $wynik[] = $wiersz;
-            }
-        }
-
-        return $wynik;
     }
 
     /**
@@ -251,20 +299,6 @@ final class Parser
             'trap_hits'      => $trapHits,
             'raw'            => $raw,
         ];
-    }
-
-    /**
-     * @param list<string> $linie
-     */
-    private function pierwszaNiepusta(array $linie): ?string
-    {
-        foreach ($linie as $linia) {
-            if (trim($linia) !== '') {
-                return $linia;
-            }
-        }
-
-        return null;
     }
 
     /**

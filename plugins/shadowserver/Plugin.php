@@ -3,38 +3,33 @@
 namespace McsPluginy\shadowserver;
 
 use App\Libraries\ImportKoperta;
+use App\Libraries\ImportLimity;
 use App\Libraries\IncydentZapis;
 use App\Libraries\Imap\ImapKlientFabryka;
 use App\Libraries\Imap\ImapKlientInterface;
-use App\Libraries\PluginOpisPolaczenia;
-use App\Libraries\SourcePluginInterface;
+use App\Libraries\Imap\PluginImapBaza;
+use App\Libraries\PrzekroczonyLimitImportu;
 use App\Libraries\WagaV1;
-use App\Models\PluginModel;
 use Config\Database;
 use RuntimeException;
 
 /**
  * Plugin źródła Shadowserver.
  *
- * Tryby pobierz():
+ * Tryby pobierz() (wspólny szkielet IMAP: PluginImapBaza, issue #463):
  * 1) plik fixture — gdy ustawione mcs.shadowserver.fixturePath (dev / test)
  * 2) IMAP — gdy .env ma host/user/pass (wymaga php-imap)
  *
+ * Duże raporty CSV czytamy strumieniowo (issue #453): importujPlik/załączniki → fgetcsv
+ * w pętli (Parser::parsujCsvStrumien), zapis paczkami 500 — pamięć nie rośnie z rozmiarem.
+ * Limity mcs.import.maxPlikMb / mcs.import.maxWierszy: przekroczenie = status `blad`.
+ *
  * klucz_dedupu: ip|tag|port|protokol (stabilny, udokumentowany).
  */
-class Plugin implements SourcePluginInterface
+class Plugin extends PluginImapBaza
 {
-    /** Maks. rozmiar załącznika z maila (bajty). */
-    private const MAX_ZALACZNIK_B = 20 * 1024 * 1024;
-
-    /** Maks. rozmiar CSV po rozpakowaniu (bajty), ochrona przed zip bomb. */
+    /** Maks. rozmiar CSV po rozpakowaniu ZIP (bajty), ochrona przed zip bomb. */
     private const MAX_CSV_B = 100 * 1024 * 1024;
-
-    private Parser $parser;
-    private ImportKoperta $koperta;
-    private IncydentZapis $zapis;
-    private WagaV1 $waga;
-    private ?ImapKlientFabryka $imapFabryka;
 
     public function __construct(
         ?Parser $parser = null,
@@ -43,11 +38,7 @@ class Plugin implements SourcePluginInterface
         ?WagaV1 $waga = null,
         ?ImapKlientFabryka $imapFabryka = null,
     ) {
-        $this->parser      = $parser ?? new Parser();
-        $this->koperta     = $koperta ?? new ImportKoperta();
-        $this->zapis       = $zapis ?? new IncydentZapis();
-        $this->waga        = $waga ?? new WagaV1();
-        $this->imapFabryka = $imapFabryka;
+        parent::__construct($parser ?? new Parser(), $koperta, $zapis, $waga, $imapFabryka);
     }
 
     public function zrodlo(): string
@@ -55,91 +46,38 @@ class Plugin implements SourcePluginInterface
         return 'shadowserver';
     }
 
-    public function pobierz(): void
+    protected function importujFixture(string $sciezka): int
     {
-        $fixture = trim((string) env('mcs.shadowserver.fixturePath', ''));
-        if ($fixture !== '') {
-            $liczba = $this->importujPlik($fixture, null);
-            $this->aktualizujHealth(
-                true,
-                $liczba > 0
-                    ? "import fixture OK ({$liczba} wierszy)"
-                    : 'brak nowych danych (duplikat checksum/id albo puste CSV)',
-            );
+        return $this->importujPlik($sciezka, null);
+    }
 
-            return;
-        }
-
-        $fabryka = $this->imapFabryka ?? new ImapKlientFabryka();
-        try {
-            $klient = $fabryka->dlaZrodla('shadowserver');
-        } catch (RuntimeException $e) {
-            $this->aktualizujHealth(false, $e->getMessage());
-            throw $e;
-        }
-
-        try {
-            $stats = $this->importujZImap($klient);
-            $this->aktualizujHealth(
-                true,
-                sprintf(
-                    'import IMAP OK (wiadomosci=%d, nowe_importy=%d, wiersze=%d%s)',
-                    $stats['wiadomosci'],
-                    $stats['importy'],
-                    $stats['wiersze'],
-                    $stats['fallback_ostatnie'] ? ', tryb=ostatnie_SEEN' : '',
-                ),
-            );
-        } catch (\Throwable $e) {
-            $this->aktualizujHealth(false, $e->getMessage());
-            throw $e;
-        } finally {
-            $klient->zamknij();
-        }
+    protected function komunikatFixture(int $liczba): string
+    {
+        return $liczba > 0
+            ? "import fixture OK ({$liczba} wierszy)"
+            : 'brak nowych danych (duplikat checksum/id albo puste CSV)';
     }
 
     /**
-     * @return array{ok: bool, msg: string}
+     * @param array<string, int|bool> $stats
      */
-    public function health(): array
+    protected function komunikatImapOk(array $stats): string
     {
-        $wiersz = model(PluginModel::class)->find($this->zrodlo());
-        if (! is_array($wiersz)) {
-            return ['ok' => false, 'msg' => 'brak w rejestrze mcs_pluginy'];
-        }
-
-        $ok  = array_key_exists('health_ok', $wiersz) ? $wiersz['health_ok'] : null;
-        $msg = (string) ($wiersz['health_msg'] ?? '');
-
-        if ($msg === '' && $ok === null) {
-            $msg = $this->opisKonfiguracji();
-        }
-
-        return [
-            'ok'  => (bool) ($ok ?? false),
-            'msg' => $msg !== '' ? $msg : 'brak przebiegu',
-        ];
-    }
-
-    /**
-     * @return array{
-     *   skrot: string,
-     *   tryb_aktywny: string,
-     *   tryb_etykieta: string,
-     *   pozycje: list<array{nazwa: string, wartosc: string, aktywna: bool, ustawiona: bool}>
-     * }
-     */
-    public function opisPolaczenia(): array
-    {
-        return PluginOpisPolaczenia::imap('mcs.shadowserver');
+        return sprintf(
+            'import IMAP OK (wiadomosci=%d, nowe_importy=%d, wiersze=%d%s)',
+            $stats['wiadomosci'],
+            $stats['importy'],
+            $stats['wiersze'],
+            $stats['fallback_ostatnie'] ? ', tryb=ostatnie_SEEN' : '',
+        );
     }
 
     /**
      * Opis gotowości .env gdy jeszcze nie było przebiegu importu.
      */
-    private function opisKonfiguracji(): string
+    protected function opisKonfiguracji(): string
     {
-        if (trim((string) env('mcs.shadowserver.fixturePath', '')) !== '') {
+        if ($this->sciezkaFixture() !== '') {
             return 'konfiguracja: tryb fixturePath (jeszcze bez przebiegu)';
         }
         $host = trim((string) env('mcs.shadowserver.imapHost', ''));
@@ -154,7 +92,7 @@ class Plugin implements SourcePluginInterface
     }
 
     /**
-     * Import jednego CSV (fixture lub załącznik).
+     * Import jednego CSV z pliku (fixture) — strumieniowo, z limitem rozmiaru (issue #453).
      */
     public function importujPlik(string $sciezka, ?string $idWiadomosci): int
     {
@@ -162,31 +100,45 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('Shadowserver: nie można odczytać pliku ' . $sciezka);
         }
 
-        $tresc    = (string) file_get_contents($sciezka);
-        $checksum = hash('sha256', $tresc);
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'Shadowserver');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                $idWiadomosci,
+                ['tryb' => 'plik', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
 
-        return $this->importujTrescCsv($tresc, $checksum, $idWiadomosci, [
-            'tryb'  => 'plik',
-            'plik'  => basename($sciezka),
-        ]);
+        $checksum = (string) hash_file('sha256', $sciezka);
+        $fp       = fopen($sciezka, 'rb');
+        if ($fp === false) {
+            throw new RuntimeException('Shadowserver: nie można otworzyć pliku ' . $sciezka);
+        }
+
+        try {
+            return $this->importujStrumienCsv($fp, $checksum, $idWiadomosci, [
+                'tryb'  => 'plik',
+                'plik'  => basename($sciezka),
+            ]);
+        } finally {
+            fclose($fp);
+        }
     }
 
     /**
+     * @param array<string, int|bool> $stats
+     *
      * @return array{wiadomosci: int, importy: int, wiersze: int, fallback_ostatnie: bool}
      */
-    private function importujZImap(ImapKlientInterface $klient): array
+    protected function importujZImap(ImapKlientInterface $klient): array
     {
-        $fallback = false;
-        $uidy     = $klient->listujUid(true);
-        if ($uidy === []) {
-            // Skrzynka produkcyjna Shadowserver bywa cala SEEN; bierzemy ostatnie UID
-            // i polegamy na checksum/id_wiadomosci w kopercie (bez podwojnego importu).
-            $limit = max(1, \App\Libraries\OpcjeMcs::int('mcs.shadowserver.imapRecentLimit'));
-            $wszystkie = $klient->listujUid(false);
-            rsort($wszystkie, SORT_NUMERIC);
-            $uidy     = array_slice($wszystkie, 0, $limit);
-            $fallback = true;
-        }
+        $wybor    = $this->uidyDoPobrania($klient);
+        $uidy     = $wybor['uidy'];
+        $fallback = $wybor['fallback'];
 
         $sumaWierszy  = 0;
         $sumaImportow = 0;
@@ -195,6 +147,22 @@ class Plugin implements SourcePluginInterface
             $wiadomosc     = $klient->pobierzWiadomosc($uid);
             $zaimportowano = false;
             foreach ($wiadomosc['zalaczniki'] as $zal) {
+                // Limit rozmiaru załącznika (issue #453): za duży = import `blad`, nie ciche pominięcie.
+                if (strlen($zal['tresc']) > ImportLimity::maxPlikB()) {
+                    $this->koperta->oznaczBlad(
+                        $this->zrodlo(),
+                        hash('sha256', $zal['tresc']),
+                        $this->idZalacznika($wiadomosc, $zal['filename']),
+                        [
+                            'tryb'     => 'imap',
+                            'uid'      => $uid,
+                            'filename' => $zal['filename'],
+                            'subject'  => $wiadomosc['subject'],
+                        ],
+                        ImportLimity::komunikatRozmiar('Shadowserver', $zal['filename'], strlen($zal['tresc']), ImportLimity::maxPlikB()),
+                    );
+                    continue;
+                }
                 $csv = $this->wyciagnijCsvZZalacznika($zal);
                 if ($csv === null) {
                     continue;
@@ -202,10 +170,8 @@ class Plugin implements SourcePluginInterface
                 $checksum = hash('sha256', $csv['tresc']);
                 // Jeden mail może mieć kilka załączników: id musi być unikalne per załącznik,
                 // bo koperta dedupuje po checksum LUB id_wiadomosci.
-                $idZalacznika = $wiadomosc['message_id'] !== null && $wiadomosc['message_id'] !== ''
-                    ? $wiadomosc['message_id'] . '#' . $csv['filename']
-                    : null;
-                $liczba   = $this->importujTrescCsv(
+                $idZalacznika = $this->idZalacznika($wiadomosc, $csv['filename']);
+                $liczba       = $this->importujTrescCsv(
                     $csv['tresc'],
                     $checksum,
                     $idZalacznika,
@@ -236,6 +202,13 @@ class Plugin implements SourcePluginInterface
         ];
     }
 
+    private function idZalacznika(array $wiadomosc, string $filename): ?string
+    {
+        return $wiadomosc['message_id'] !== null && $wiadomosc['message_id'] !== ''
+            ? $wiadomosc['message_id'] . '#' . $filename
+            : null;
+    }
+
     /**
      * Akceptuje .csv albo .zip/.csv.zip z jednym (lub pierwszym) plikiem CSV w srodku.
      *
@@ -245,8 +218,8 @@ class Plugin implements SourcePluginInterface
      */
     private function wyciagnijCsvZZalacznika(array $zal): ?array
     {
-        if (strlen($zal['tresc']) > self::MAX_ZALACZNIK_B) {
-            return null;
+        if (strlen($zal['tresc']) > ImportLimity::maxPlikB()) {
+            return null; // backstop — główna oznaka `blad` jest w importujZImap
         }
 
         $nazwa = strtolower($zal['filename']);
@@ -315,9 +288,42 @@ class Plugin implements SourcePluginInterface
     }
 
     /**
+     * Import CSV z treści w pamięci (załącznik IMAP) — przez strumień php://temp (issue #453).
+     *
      * @param array<string, mixed> $meta
      */
     private function importujTrescCsv(string $tresc, string $checksum, ?string $idWiadomosci, array $meta): int
+    {
+        try {
+            ImportLimity::sprawdzTresc($tresc, 'Shadowserver', $meta['filename'] ?? '');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad($this->zrodlo(), $checksum, $idWiadomosci, $meta, $e->getMessage());
+            throw $e;
+        }
+
+        $fp = fopen('php://temp', 'r+');
+        if ($fp === false) {
+            throw new RuntimeException('Shadowserver: nie można otworzyć strumienia CSV');
+        }
+        fwrite($fp, $tresc);
+        rewind($fp);
+
+        try {
+            return $this->importujStrumienCsv($fp, $checksum, $idWiadomosci, $meta);
+        } finally {
+            fclose($fp);
+        }
+    }
+
+    /**
+     * Import CSV ze strumienia (issue #453): wiersze zapisywane paczkami po ROZMIAR_PACZKI
+     * w trakcie czytania — pamięć nie rośnie z rozmiarem raportu. Limit wierszy
+     * egzekwuje Parser::parsujCsvStrumien (PrzekroczonyLimitImportu → status `blad`).
+     *
+     * @param resource             $fp
+     * @param array<string, mixed> $meta
+     */
+    private function importujStrumienCsv($fp, string $checksum, ?string $idWiadomosci, array $meta): int
     {
         $importId = $this->koperta->rozpocznij($this->zrodlo(), $checksum, $idWiadomosci, $meta);
         if ($importId === null) {
@@ -327,20 +333,12 @@ class Plugin implements SourcePluginInterface
         $db = Database::connect();
 
         try {
-            $wiersze = $this->parser->parsujCsv($tresc);
-            if ($wiersze === []) {
-                $this->koperta->zakonczKwarantanna($importId, 'CSV bez poprawnych wierszy IP');
-
-                return 0;
-            }
-
-            // Zbiorczy zapis (issue #442): najpierw wiersze źródła paczkami (INSERT … RETURNING id),
-            // potem wszystkie incydenty jednym zapiszWiele (upsert ON CONFLICT + paczki 500).
+            $licznik   = 0;
             $wierszeDb = [];
             $incydenty = [];
-            foreach ($wiersze as $w) {
+            foreach ($this->parser->parsujCsvStrumien($fp) as $w) {
                 $kategoria = $this->parser->kategoriaDlaWiersza($w);
-                $sygnaly = [];
+                $sygnaly   = [];
                 if (! empty($w['severity'])) {
                     $sygnaly['severity'] = $w['severity'];
                 }
@@ -357,7 +355,7 @@ class Plugin implements SourcePluginInterface
                     'port'             => $w['port'],
                     'protokol'         => $w['protokol'],
                     'tag'              => $w['tag'],
-                    'severity'         => $w['severity'],
+                    'severity'       => $w['severity'],
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'payload_json'     => json_encode($w['raw'], JSON_UNESCAPED_UNICODE),
                 ];
@@ -380,23 +378,29 @@ class Plugin implements SourcePluginInterface
                     'port'             => $w['port'],
                     'protokol'         => $w['protokol'],
                     'import_id'        => $importId,
-                    'id_w_zrodle'      => null, // uzupełnione niżej po zbiorczym INSERT wierszy źródła
+                    'id_w_zrodle'      => null, // uzupełnione w zapiszPaczke po zbiorczym INSERT wierszy źródła
                     'payload'          => [
                         'tag'       => $w['tag'],
                         'severity'  => $w['severity'],
                         'waga_meta' => $wynikWagi,
                     ],
                 ];
-            }
 
-            foreach (array_chunk($wierszeDb, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI, true) as $paczka) {
-                $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_shadowserver_wiersze', array_values($paczka));
-                foreach (array_keys($paczka) as $j => $i) {
-                    $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+                if (count($wierszeDb) >= \App\Libraries\IncydentZapis::ROZMIAR_PACZKI) {
+                    $licznik   += $this->zapiszPaczke($db, $wierszeDb, $incydenty);
+                    $wierszeDb = [];
+                    $incydenty = [];
                 }
             }
-            $this->zapis->zapiszWiele($incydenty);
-            $licznik = count($wiersze);
+            if ($wierszeDb !== []) {
+                $licznik += $this->zapiszPaczke($db, $wierszeDb, $incydenty);
+            }
+
+            if ($licznik === 0) {
+                $this->koperta->zakonczKwarantanna($importId, 'CSV bez poprawnych wierszy IP');
+
+                return 0;
+            }
 
             $this->koperta->zakonczOk($importId, ['wierszy' => $licznik]);
 
@@ -405,6 +409,26 @@ class Plugin implements SourcePluginInterface
             $this->koperta->zakonczBlad($importId, $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Jedna paczka strumienia (issue #442 + #453): zbiorczy INSERT wierszy źródła
+     * (INSERT … RETURNING id) + zapiszWiele incydentów — i od razu flush, żeby
+     * pamięć nie rosła z liczbą wierszy.
+     *
+     * @param \CodeIgniter\Database\BaseConnection $db
+     * @param list<array<string, mixed>>            $wierszeDb
+     * @param list<array<string, mixed>>            $incydenty
+     */
+    private function zapiszPaczke($db, array $wierszeDb, array $incydenty): int
+    {
+        $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_shadowserver_wiersze', array_values($wierszeDb));
+        foreach (array_keys($wierszeDb) as $j => $i) {
+            $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+        }
+        $this->zapis->zapiszWiele($incydenty);
+
+        return count($wierszeDb);
     }
 
     private function normalizujCzas(string $timestamp): string
@@ -416,14 +440,5 @@ class Plugin implements SourcePluginInterface
         } catch (\Exception) {
             return (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:sP');
         }
-    }
-
-    private function aktualizujHealth(bool $ok, string $msg): void
-    {
-        model(PluginModel::class)->update($this->zrodlo(), [
-            'health_at'  => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:sP'),
-            'health_ok'  => $ok,
-            'health_msg' => mb_substr($msg, 0, 500),
-        ]);
     }
 }

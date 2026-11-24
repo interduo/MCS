@@ -20,6 +20,7 @@ final class BladUi
     /** Klasy wyjątków z zaufanym komunikatem. @var list<class-string<\Throwable>> */
     private const KLASY_ZAUFANE = [
         \McsPluginy\spamhaus\BladPobrania::class,
+        \App\Libraries\PrzekroczonyLimitImportu::class, // issue #453: tylko nasz tekst + rozmiary
     ];
 
     /**

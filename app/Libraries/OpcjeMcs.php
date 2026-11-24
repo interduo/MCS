@@ -198,6 +198,16 @@ final class OpcjeMcs
             'opis' => 'Czyszczone przy każdym skanie. Wiersze skanów (trend) zostają.',
         ];
 
+        // --- Importy (limity rozmiaru/wierszy, issue #453) ---
+        $d['mcs.import.maxPlikMb'] = [
+            'grupa' => 'Importy', 'etykieta' => 'Max rozmiar pliku/załącznika (MB)', 'typ' => 'int', 'domyslna' => '100', 'min' => 1, 'max' => 4096,
+            'opis' => 'Powyżej limitu import oznaczony jako „blad” w mcs_importy i odrzucony w całości (bez częściowego importu).',
+        ];
+        $d['mcs.import.maxWierszy'] = [
+            'grupa' => 'Importy', 'etykieta' => 'Max wierszy na jeden import', 'typ' => 'int', 'domyslna' => '500000', 'min' => 1, 'max' => 10000000,
+            'opis' => 'Duże CSV czytane strumieniowo (fgetcsv w pętli); powyżej limitu import = „blad”.',
+        ];
+
         // --- Źródła IMAP ---
         $d['mcs.shadowserver.imapRecentLimit'] = [
             'grupa' => 'Shadowserver', 'etykieta' => 'IMAP — ile ostatnich UID gdy brak UNSEEN', 'typ' => 'int', 'domyslna' => '40', 'min' => 1, 'max' => 5000,

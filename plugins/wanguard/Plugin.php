@@ -3,8 +3,10 @@
 namespace McsPluginy\wanguard;
 
 use App\Libraries\ImportKoperta;
+use App\Libraries\ImportLimity;
 use App\Libraries\IncydentZapis;
 use App\Libraries\PluginOpisPolaczenia;
+use App\Libraries\PrzekroczonyLimitImportu;
 use App\Libraries\SourcePluginInterface;
 use App\Libraries\WagaV1;
 use App\Models\PluginModel;
@@ -150,6 +152,19 @@ class Plugin implements SourcePluginInterface
             throw new RuntimeException('Wanguard: nie mozna odczytac pliku ' . $sciezka);
         }
 
+        try {
+            ImportLimity::sprawdzPlik($sciezka, 'Wanguard');
+        } catch (PrzekroczonyLimitImportu $e) {
+            $this->koperta->oznaczBlad(
+                $this->zrodlo(),
+                hash_file('sha256', $sciezka) ?: null,
+                null,
+                ['tryb' => 'fixture', 'plik' => basename($sciezka)],
+                $e->getMessage(),
+            );
+            throw $e;
+        }
+
         $tresc   = (string) file_get_contents($sciezka);
         $details = $this->parser->parsujFixtureJson($tresc);
 
@@ -261,6 +276,8 @@ class Plugin implements SourcePluginInterface
 
                 return 0;
             }
+
+            ImportLimity::sprawdzLiczbeWierszy('Wanguard', count($details));
 
             $licznik = 0;
             foreach ($details as $detail) {
