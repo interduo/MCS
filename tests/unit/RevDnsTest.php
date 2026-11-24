@@ -69,6 +69,55 @@ final class RevDnsTest extends CIUnitTestCase
         $this->assertNull($rev->dlaIp('nie-ip'));
     }
 
+    public function testResolverRzucaWyjatekZwracaNull(): void
+    {
+        $model = $this->createMock(UstawieniaModel::class);
+        $model->method('pobierz')->willReturn('1');
+
+        $rev = new RevDns($model, static function (): ?string {
+            throw new \RuntimeException('resolver padł');
+        }, $this->pamiecCache());
+
+        $this->assertNull($rev->dlaIp('198.51.100.10'));
+    }
+
+    /**
+     * Issue #447: domyślny resolver (bez wstrzykniętego callable) to PtrResolver z twardym
+     * timeoutem — dla IP bez PTR zwraca null i nie może zawiesić requestu (/ip/{ip}).
+     */
+    public function testDomyslnyResolverMaTwardyTimeoutIIFallbackNull(): void
+    {
+        $model = $this->createMock(UstawieniaModel::class);
+        $model->method('pobierz')->willReturn('1');
+
+        $stare = [$_SERVER['mcs.revDns.resolver'] ?? null, $_SERVER['mcs.revDns.timeoutMs'] ?? null];
+        $_SERVER['mcs.revDns.resolver']   = '127.0.0.1';
+        $_SERVER['mcs.revDns.timeoutMs']  = '120';
+        \App\Libraries\OpcjeMcs::ustawModel(null);
+
+        try {
+            $rev   = new RevDns($model, null, $this->pamiecCache());
+            $start = microtime(true);
+            $wynik = $rev->dlaIp('203.0.113.7'); // TEST-NET-3 — bez PTR
+            $czas  = microtime(true) - $start;
+
+            $this->assertNull($wynik);
+            $this->assertLessThan(2.0, $czas, 'lookup PTR przy zimnym cache musi być ograniczony timeoutem');
+        } finally {
+            if ($stare[0] === null) {
+                unset($_SERVER['mcs.revDns.resolver']);
+            } else {
+                $_SERVER['mcs.revDns.resolver'] = $stare[0];
+            }
+            if ($stare[1] === null) {
+                unset($_SERVER['mcs.revDns.timeoutMs']);
+            } else {
+                $_SERVER['mcs.revDns.timeoutMs'] = $stare[1];
+            }
+            \App\Libraries\OpcjeMcs::ustawModel(null);
+        }
+    }
+
     public function testKluczUstawienia(): void
     {
         $this->assertSame('pokazuj_rev_dns', RevDns::KLUCZ_WLACZONE);

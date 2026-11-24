@@ -255,6 +255,7 @@ class Plugin implements SourcePluginInterface
                         continue;
                     }
                     ++$stats['subnets'];
+                    $zebrane = [];
 
                     for ($p = 1; $p <= $maxPages; ++$p) {
                         $scanQuery = ['page' => $p];
@@ -284,21 +285,18 @@ class Plugin implements SourcePluginInterface
                                     break;
                                 }
                             }
-                            $n = $this->zapiszWiersz(
-                                $db,
-                                $importId,
-                                $row,
-                                $orgSlug,
-                                $orgName,
-                                $subnetStorage,
-                            );
-                            $stats['skany'] += $n;
+                            // zbiorczo (issue #442): wiersze tylko przygotowane, zapis paczkowy po stronie
+                            $z = $this->przygotujWiersz($row, $orgSlug, $orgName, $subnetStorage);
+                            if ($z !== null) {
+                                $zebrane[] = $z;
+                            }
                         }
 
                         if ($pozaOknem || empty($sd['next'])) {
                             break;
                         }
                     }
+                    $stats['skany'] += $this->zapiszZebrane($db, $importId, $zebrane);
                 }
             }
 
@@ -352,7 +350,7 @@ class Plugin implements SourcePluginInterface
                 return 0;
             }
 
-            $licznik = 0;
+            $zebrane = [];
             foreach ($results as $row) {
                 if (! is_array($row)) {
                     continue;
@@ -364,8 +362,13 @@ class Plugin implements SourcePluginInterface
                         continue;
                     }
                 }
-                $licznik += $this->zapiszWiersz($db, $importId, $row, $orgSlug, $orgName, $subnetCidr);
+                // zbiorczo (issue #442): wiersze tylko przygotowane, zapis paczkowy poniżej
+                $z = $this->przygotujWiersz($row, $orgSlug, $orgName, $subnetCidr);
+                if ($z !== null) {
+                    $zebrane[] = $z;
+                }
             }
+            $licznik = $this->zapiszZebrane($db, $importId, $zebrane);
 
             $this->koperta->zakonczOk($importId, ['wierszy' => $licznik]);
 
@@ -377,28 +380,21 @@ class Plugin implements SourcePluginInterface
     }
 
     /**
-     * @param \CodeIgniter\Database\BaseConnection $db
-     * @param array<string, mixed>                 $row
+     * Mapuje wiersz API/fixture na parę (wiersz mcs_mojecert_skany, dane incydentu) — bez zapisu do DB.
+     *
+     * @param array<string, mixed> $row
+     *
+     * @return array{skany: array<string, mixed>, incydent: array<string, mixed>}|null
      */
-    private function zapiszWiersz(
-        $db,
-        int $importId,
+    private function przygotujWiersz(
         array $row,
         string $orgSlug,
         string $orgName,
         string $subnetStorage,
-    ): int {
+    ): ?array {
         $mapped = $this->parser->mapujWiersz($row, $orgSlug, $subnetStorage);
         if ($mapped === null) {
-            return 0;
-        }
-
-        $istniejacy = $db->table('mcs_mojecert_skany')
-            ->where('klucz_dedupu', $mapped['klucz_dedupu'])
-            ->get()
-            ->getRowArray();
-        if (is_array($istniejacy) && isset($istniejacy['id'])) {
-            return 0;
+            return null;
         }
 
         $sygnaly = [];
@@ -410,55 +406,113 @@ class Plugin implements SourcePluginInterface
         }
         $wynikWagi = $this->waga->wylicz($mapped['kategoria'], $sygnaly);
 
-        $db->table('mcs_mojecert_skany')->insert([
-            'import_id'        => $importId,
-            'zaobserwowano_at' => $mapped['zaobserwowano_at'],
-            'ip'               => $mapped['ip'],
-            'org_slug'         => $orgSlug,
-            'org_name'         => $orgName,
-            'subnet_cidr'      => $subnetStorage,
-            'report_type'      => $mapped['report_type'],
-            'severity'         => $mapped['severity'],
-            'target'           => $mapped['target'],
-            'klucz_dedupu'     => $mapped['klucz_dedupu'],
-            'payload_json'     => json_encode([
-                'raw'            => $mapped['raw'],
-                'last_domain'    => $mapped['last_domain'],
-                'detail_excerpt' => $mapped['detail_excerpt'],
-                'name_title'     => $mapped['name_title'],
-            ], JSON_UNESCAPED_UNICODE),
-        ]);
-        $idWZrodle = (string) $db->insertID();
-
         $tytul = 'MojeCert';
         if ($mapped['report_type'] !== '') {
             $tytul .= ' — ' . $mapped['report_type'];
         }
 
-        $this->zapis->zapisz([
-            'zrodlo'           => $this->zrodlo(),
-            'klucz_dedupu'     => $mapped['klucz_dedupu'],
-            'podmiot_typ'      => 'ip',
-            'podmiot'          => $mapped['ip'],
-            'zaobserwowano_at' => $mapped['zaobserwowano_at'],
-            'waga'             => $wynikWagi['waga'],
-            'wersja_wagi'      => $wynikWagi['wersja'],
-            'kategoria'        => $mapped['kategoria'],
-            'tytul'            => $tytul,
-            'import_id'        => $importId,
-            'id_w_zrodle'      => $idWZrodle,
-            'payload'          => [
-                'org_slug'     => $orgSlug,
-                'subnet_cidr'  => $subnetStorage,
-                'report_type'  => $mapped['report_type'],
-                'severity'     => $mapped['severity'],
-                'target'       => $mapped['target'],
-                'last_domain'  => $mapped['last_domain'],
-                'waga_meta'    => $wynikWagi,
+        return [
+            'skany'    => [
+                'import_id'        => 0, // uzupełnione w zapiszZebrane
+                'zaobserwowano_at' => $mapped['zaobserwowano_at'],
+                'ip'               => $mapped['ip'],
+                'org_slug'         => $orgSlug,
+                'org_name'         => $orgName,
+                'subnet_cidr'      => $subnetStorage,
+                'report_type'      => $mapped['report_type'],
+                'severity'         => $mapped['severity'],
+                'target'           => $mapped['target'],
+                'klucz_dedupu'     => $mapped['klucz_dedupu'],
+                'payload_json'     => json_encode([
+                    'raw'            => $mapped['raw'],
+                    'last_domain'    => $mapped['last_domain'],
+                    'detail_excerpt' => $mapped['detail_excerpt'],
+                    'name_title'     => $mapped['name_title'],
+                ], JSON_UNESCAPED_UNICODE),
             ],
-        ]);
+            'incydent' => [
+                'zrodlo'           => $this->zrodlo(),
+                'klucz_dedupu'     => $mapped['klucz_dedupu'],
+                'podmiot_typ'      => 'ip',
+                'podmiot'          => $mapped['ip'],
+                'zaobserwowano_at' => $mapped['zaobserwowano_at'],
+                'waga'             => $wynikWagi['waga'],
+                'wersja_wagi'      => $wynikWagi['wersja'],
+                'kategoria'        => $mapped['kategoria'],
+                'tytul'            => $tytul,
+                'import_id'        => 0, // uzupełnione w zapiszZebrane
+                'payload'          => [
+                    'org_slug'     => $orgSlug,
+                    'subnet_cidr'  => $subnetStorage,
+                    'report_type'  => $mapped['report_type'],
+                    'severity'     => $mapped['severity'],
+                    'target'       => $mapped['target'],
+                    'last_domain'  => $mapped['last_domain'],
+                    'waga_meta'    => $wynikWagi,
+                ],
+            ],
+        ];
+    }
 
-        return 1;
+    /**
+     * Zbiorczy zapis przygotowanych wierszy (issue #442): jeden SELECT dedup po klucz_dedupu
+     * (whereIn), INSERT … paczkami mcs_mojecert_skany (id w kolejności), incydenty jednym zapiszWiele.
+     * Klucz już istniejący w tabeli skanów = duplikat → pomijamy (jak check-then-insert per wiersz).
+     *
+     * @param \CodeIgniter\Database\BaseConnection $db
+     * @param list<array{skany: array<string, mixed>, incydent: array<string, mixed>}> $zebrane
+     *
+     * @return int liczba faktycznie zapisanych (nowych) skanów
+     */
+    private function zapiszZebrane($db, int $importId, array $zebrane): int
+    {
+        if ($zebrane === []) {
+            return 0;
+        }
+
+        // Dedup w paczce po klucz_dedupu — pierwszy wygrywa (duplikat w źródle był pomijany).
+        $poKluczu = [];
+        foreach ($zebrane as $z) {
+            $poKluczu[$z['skany']['klucz_dedupu']] ??= $z;
+        }
+
+        // Jeden SELECT: które klucze są już w mcs_mojecert_skany.
+        $istniejace = $db->table('mcs_mojecert_skany')
+            ->select('klucz_dedupu')
+            ->whereIn('klucz_dedupu', array_keys($poKluczu))
+            ->get()
+            ->getResultArray();
+        $maKlucze = array_column($istniejace, 'klucz_dedupu');
+
+        $nowe = [];
+        foreach ($poKluczu as $k => $z) {
+            if (! in_array($k, $maKlucze, true)) {
+                $nowe[] = $z;
+            }
+        }
+        if ($nowe === []) {
+            return 0;
+        }
+
+        // INSERT skanów paczkami — id w kolejności VALUES.
+        $daneIncydenty = [];
+        foreach (array_chunk($nowe, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI, true) as $paczka) {
+            $skany = [];
+            foreach ($paczka as $z) {
+                $z['skany']['import_id'] = $importId;
+                $skany[]                 = $z['skany'];
+            }
+            $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_mojecert_skany', $skany);
+            foreach (array_keys($paczka) as $j => $i) {
+                $z = $paczka[$i];
+                $z['incydent']['import_id']   = $importId;
+                $z['incydent']['id_w_zrodle'] = (string) $ids[$j];
+                $daneIncydenty[]              = $z['incydent'];
+            }
+        }
+        $this->zapis->zapiszWiele($daneIncydenty);
+
+        return count($nowe);
     }
 
     private function opisKonfiguracji(): string

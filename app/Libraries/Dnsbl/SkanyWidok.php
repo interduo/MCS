@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Dnsbl;
 
+use App\Libraries\CsvBezpieczenstwo;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -276,22 +277,17 @@ class SkanyWidok
      */
     public static function csv(array $wiersze): string
     {
-        $bezp = static function (mixed $v): string {
-            $v = (string) ($v ?? '');
-
-            return $v !== '' && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true) ? "'" . $v : $v;
-        };
         $fh = fopen('php://temp', 'r+');
         fputcsv($fh, ['ip', 'strefa', 'kod', 'txt', 'status', 'blad'], ',', '"', '');
         foreach ($wiersze as $w) {
             $strefa = (string) ($w['strefa'] ?? '');
             fputcsv($fh, [
-                $bezp($w['ip'] ?? ''),
-                $bezp($strefa !== '' ? $strefa : ($w['strefa_kod'] ?? '')),
-                $bezp($w['kody'] ?? ''),
-                $bezp($w['txt'] ?? ''),
-                $bezp($w['status'] ?? ''),
-                $bezp($w['blad'] ?? ''),
+                CsvBezpieczenstwo::pole($w['ip'] ?? ''),
+                CsvBezpieczenstwo::pole($strefa !== '' ? $strefa : ($w['strefa_kod'] ?? '')),
+                CsvBezpieczenstwo::pole($w['kody'] ?? ''),
+                CsvBezpieczenstwo::pole($w['txt'] ?? ''),
+                CsvBezpieczenstwo::pole($w['status'] ?? ''),
+                CsvBezpieczenstwo::pole($w['blad'] ?? ''),
             ], ',', '"', '');
         }
         rewind($fh);

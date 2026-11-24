@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\CsvBezpieczenstwo;
 use App\Libraries\DashboardFiltry;
 use App\Libraries\Enrichment\SpeedtestSerwis;
 use App\Libraries\KolejkaDnia;
@@ -53,7 +54,7 @@ class Dashboard extends BaseController
             $filtry['ip'],
             $filtry['kategoria'],
             $filtry['port'],
-            $ctx['akceptujIp'],
+            $ctx['grupyCidr'],
         );
 
         return view('dashboard/index', $this->daneWidoku('dashboard', array_merge(
@@ -64,7 +65,7 @@ class Dashboard extends BaseController
                     $filtry['okno'],
                     $filtry['zrodlo'],
                     $filtry['ip'],
-                    $ctx['akceptujIp'],
+                    $ctx['grupyCidr'],
                     $filtry['kategoria'],
                     $filtry['port'],
                 ),
@@ -120,8 +121,9 @@ class Dashboard extends BaseController
         $ctx['queryEksport'] = $this->queryEksport($filtry);
         // CIDR z sesji jest celowo wyzerowany — przebuduj filtr AS, żeby wąski CIDR
         // z innych widoków nie zawężał kolejki dnia.
-        $matcher           = new As198050Matcher();
-        $ctx['akceptujIp'] = $matcher->filtrAkceptujIp(null);
+        $matcher            = new As198050Matcher();
+        $ctx['akceptujIp']  = $matcher->filtrAkceptujIp(null);
+        $ctx['grupyCidr']   = $this->grupyCidr($matcher, null);
 
         return view('dashboard/kolejka', $this->daneWidoku(
             'kolejka',
@@ -240,6 +242,15 @@ class Dashboard extends BaseController
         $blad    = null;
         try {
             $raw = $model->listedAktualne($akceptujIp, $lista !== '' ? $lista : null, 500);
+            // zbiorczy lookup LMS (issue #445): jedno WHERE ip IN (…) zamiast N zapytań per IP
+            $ipsLms = [];
+            foreach ($raw as $row) {
+                $ip = (string) ($row['ip'] ?? '');
+                if ($ip !== '') {
+                    $ipsLms[] = $ip;
+                }
+            }
+            $lmsMapa = $lms->znajdzWiele($ipsLms);
             foreach ($raw as $row) {
                 $ip   = (string) ($row['ip'] ?? '');
                 $listy = $row['listy_json'] ?? [];
@@ -256,7 +267,7 @@ class Dashboard extends BaseController
                         $hit[] = (string) $id;
                     }
                 }
-                $lmsRow = $ip !== '' ? $lms->znajdzPoIp($ip) : null;
+                $lmsRow = $ip !== '' ? ($lmsMapa[$ip] ?? null) : null;
                 $wiersze[] = [
                     'ip'           => $ip,
                     'listy'        => $hit,
@@ -493,7 +504,7 @@ class Dashboard extends BaseController
         }
 
         $matcher    = new As198050Matcher();
-        $akceptujIp = $matcher->filtrAkceptujIp($filtry['cidr'] ?? null);
+        $grupyCidr  = $this->grupyCidr($matcher, $filtry['cidr'] ?? null);
 
         $topIp = model(IncydentModel::class)->topProblematyczneIp(
             $filtry['okno'],
@@ -502,7 +513,7 @@ class Dashboard extends BaseController
             $filtry['minWaga'],
             $filtry['minZrodel'],
             self::LISTA_MAX,
-            $akceptujIp,
+            $grupyCidr,
             $filtry['kategoria'],
             $filtry['port'],
         );
@@ -523,14 +534,15 @@ class Dashboard extends BaseController
         ]);
 
         foreach ($topIp as $wiersz) {
+            // Wszystkie pola neutralizowane przed formula injection (dane z zewnętrznych feedów).
             fputcsv($fh, [
-                (string) ($wiersz['ip'] ?? ''),
-                (int) ($wiersz['liczba_zrodel'] ?? 0),
-                implode('|', $wiersz['zrodla'] ?? []),
-                implode('|', $wiersz['kategorie'] ?? []),
-                (string) ($wiersz['max_waga'] ?? ''),
-                (int) ($wiersz['liczba_incydentow'] ?? 0),
-                (string) ($wiersz['ostatnio_widziane'] ?? ''),
+                CsvBezpieczenstwo::pole($wiersz['ip'] ?? ''),
+                CsvBezpieczenstwo::pole($wiersz['liczba_zrodel'] ?? 0),
+                CsvBezpieczenstwo::pole(implode('|', $wiersz['zrodla'] ?? [])),
+                CsvBezpieczenstwo::pole(implode('|', $wiersz['kategorie'] ?? [])),
+                CsvBezpieczenstwo::pole($wiersz['max_waga'] ?? ''),
+                CsvBezpieczenstwo::pole($wiersz['liczba_incydentow'] ?? 0),
+                CsvBezpieczenstwo::pole($wiersz['ostatnio_widziane'] ?? ''),
             ]);
         }
 
@@ -569,7 +581,7 @@ class Dashboard extends BaseController
             $filtry['minWaga'],
             $filtry['minZrodel'],
             self::LISTA_MAX,
-            $ctx['akceptujIp'],
+            $ctx['grupyCidr'],
             $filtry['kategoria'],
             $filtry['port'],
         );
@@ -703,6 +715,7 @@ class Dashboard extends BaseController
      *   },
      *   asMatchWlaczone: bool,
      *   akceptujIp: (callable(string): bool)|null,
+     *   grupyCidr: list<list<string>>,
      *   zrodla: list<string>,
      *   kategorie: list<string>,
      *   podsieciAs: list<string>,
@@ -716,17 +729,42 @@ class Dashboard extends BaseController
         $asMatchWlaczone = $matcher->jestWlaczone();
         $cidr            = ! empty($filtry['bladCidr']) ? null : ($filtry['cidr'] ?? null);
         $akceptujIp      = $matcher->filtrAkceptujIp(is_string($cidr) ? $cidr : null);
+        $grupyCidr       = $this->grupyCidr($matcher, is_string($cidr) ? $cidr : null);
         $model           = model(IncydentModel::class);
 
         return [
             'filtry'          => $filtry,
             'asMatchWlaczone' => $asMatchWlaczone,
             'akceptujIp'      => $akceptujIp,
+            'grupyCidr'       => $grupyCidr,
             'zrodla'          => $model->widoczneZrodla(),
             'kategorie'       => $model->widoczneKategorie(),
             'podsieciAs'      => $matcher->cidryIpv4(),
             'queryEksport'    => $this->queryEksport($filtry),
         ];
+    }
+
+    /**
+     * Grupy CIDR dla filtra SQL agregacji (KPI/top/trendy): prefiksy AS (gdy włączone)
+     * oraz opcjonalny CIDR z filtra — AND między grupami, OR w grupie (jak filtrAkceptujIp).
+     *
+     * @return list<list<string>>
+     */
+    private function grupyCidr(As198050Matcher $matcher, ?string $cidr): array
+    {
+        $grupy = [];
+        if ($matcher->jestWlaczone()) {
+            $cidryAs = $matcher->cidry();
+            if ($cidryAs !== []) {
+                $grupy[] = $cidryAs;
+            }
+        }
+        $cidr = $cidr !== null ? trim($cidr) : '';
+        if ($cidr !== '') {
+            $grupy[] = [$cidr];
+        }
+
+        return $grupy;
     }
 
     /**

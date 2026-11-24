@@ -24,7 +24,7 @@ class McsBadgeTokenFilter implements FilterInterface
             return $this->odrzuc();
         }
 
-        $podany = $this->wyciagnijToken($request);
+        $podany = self::wyciagnijToken($request);
         if ($podany === null || ! hash_equals($oczekiwany, $podany)) {
             return $this->odrzuc();
         }
@@ -48,7 +48,10 @@ class McsBadgeTokenFilter implements FilterInterface
         return strlen($token) >= 32 && strcasecmp($token, 'ZMIEN_TOKEN') !== 0;
     }
 
-    private function wyciagnijToken(RequestInterface $request): ?string
+    /**
+     * Token z nagłówka X-Mcs-Badge-Token albo Authorization: Bearer … (współdzielone z McsApiThrottleFilter).
+     */
+    public static function wyciagnijToken(RequestInterface $request): ?string
     {
         if (! $request instanceof IncomingRequest) {
             return null;

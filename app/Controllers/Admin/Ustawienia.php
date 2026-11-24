@@ -58,11 +58,12 @@ class Ustawienia extends BaseController
         $zle     = $cidr->niepoprawne($lista);
 
         if ($zle !== []) {
+            // withInput — żeby przy błędnym CIDR nie przepadała cała wklejona lista (#434)
             return redirect()->to('/admin/ustawienia')->with(
                 'blad',
                 'Niepoprawne CIDR: ' . implode(', ', $zle)
                 . '. Podaj adresy w formie 1.2.3.0/24 (IPv4) lub 2a0f:1700::/29 (IPv6), po jednym w linii.',
-            );
+            )->withInput();
         }
 
         $model = model(UstawieniaModel::class);
@@ -84,7 +85,7 @@ class Ustawienia extends BaseController
             return redirect()->to('/admin/ustawienia')->with(
                 'blad',
                 'Nie udało się zapisać ustawień (sprawdź migrację mcs_ustawienia).',
-            );
+            )->withInput();
         }
 
         $ile = count($lista);
@@ -156,9 +157,11 @@ class Ustawienia extends BaseController
 
         $wynik = OpcjeMcs::zapisz(model(UstawieniaModel::class), $wartosci, $przywroc);
         if (! $wynik['ok']) {
+            // withInput — poprawiane wartości zostają w formularzu (#434)
             return redirect()->to('/admin/ustawienia/opcje')
                 ->with('blad', 'Nie zapisano opcji — popraw błędy.')
-                ->with('bledyOpcji', $wynik['bledy']);
+                ->with('bledyOpcji', $wynik['bledy'])
+                ->withInput();
         }
 
         return redirect()->to('/admin/ustawienia/opcje')->with(

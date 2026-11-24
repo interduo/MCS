@@ -53,11 +53,17 @@ $etykietaZrodla = static function (string $zrodlo): array {
                 <h2 class="h5 mb-0"><?= esc((string) $grupa) ?></h2>
             </div>
             <div class="card-body">
+                <?php
+                // #434: po błędzie walidacji formularz pokazuje wklejone wartości (old), nie wartości z DB
+                $opcjaOld = old('opcja', [], false);
+                $opcjaOld = is_array($opcjaOld) ? $opcjaOld : [];
+                ?>
                 <?php foreach ($opcje as $klucz => $o): ?>
                     <?php
                     $id = 'opcja_' . preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $klucz);
                     [$zrTekst, $zrKlasa] = $etykietaZrodla((string) $o['zrodlo']);
                     $typ = rtrim((string) $o['typ'], '?');
+                    $wartosc = array_key_exists((string) $klucz, $opcjaOld) ? (string) $opcjaOld[(string) $klucz] : (string) $o['wartosc'];
                     ?>
                     <div class="row g-2 align-items-center mb-2">
                         <label class="col-md-5 col-form-label" for="<?= esc($id, 'attr') ?>">
@@ -72,7 +78,7 @@ $etykietaZrodla = static function (string $zrodlo): array {
                                 <select class="form-select<?= isset($bledy[$klucz]) ? ' is-invalid' : '' ?>"
                                         id="<?= esc($id, 'attr') ?>" name="opcja[<?= esc((string) $klucz, 'attr') ?>]">
                                     <?php foreach ($o['opcje'] ?? [] as $opt): ?>
-                                        <option value="<?= esc((string) $opt, 'attr') ?>"<?= (string) $opt === (string) $o['wartosc'] ? ' selected' : '' ?>><?= esc((string) $opt) ?></option>
+                                        <option value="<?= esc((string) $opt, 'attr') ?>"<?= (string) $opt === $wartosc ? ' selected' : '' ?>><?= esc((string) $opt) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             <?php else: ?>
@@ -81,7 +87,7 @@ $etykietaZrodla = static function (string $zrodlo): array {
                                        type="<?= $typ === 'email' ? 'email' : ($typ === 'int' ? 'number' : 'text') ?>"
                                        <?php if ($typ === 'int' && isset($o['min'])): ?>min="<?= (int) $o['min'] ?>"<?php endif; ?>
                                        <?php if ($typ === 'int' && isset($o['max'])): ?>max="<?= (int) $o['max'] ?>"<?php endif; ?>
-                                       value="<?= esc((string) $o['wartosc'], 'attr') ?>">
+                                       value="<?= esc($wartosc, 'attr') ?>">
                             <?php endif; ?>
                         </div>
                         <div class="col-md-4 small">

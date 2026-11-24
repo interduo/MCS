@@ -76,15 +76,18 @@ class ZmianySkanu
         $inc   = [];
         $utw   = 0;
 
+        // Zbiorczy zapis incydentów (issue #442): jedno zapiszWiele zamiast pętli per wiersz.
+        $wagaMeta = $this->wagaMeta();
+        $dane     = [];
         foreach ($wyb['do_incydentu'] as $n) {
-            $w = $this->zapis()->zapisz([
+            $dane[] = [
                 'zrodlo'           => self::ZRODLO,
                 'klucz_dedupu'     => self::kluczDedupu($n['ip'], $n['kod']),
                 'podmiot_typ'      => 'ip',
                 'podmiot'          => $n['ip'],
                 'zaobserwowano_at' => $teraz,
-                'waga'             => $this->wagaMeta()['waga'],
-                'wersja_wagi'      => $this->wagaMeta()['wersja'],
+                'waga'             => $wagaMeta['waga'],
+                'wersja_wagi'      => $wagaMeta['wersja'],
                 'kategoria'        => 'reputation',
                 'tytul'            => 'DNSBL ' . $n['kod'] . ': ' . $n['ip'],
                 'id_w_zrodle'      => 'skan#' . $skanId,
@@ -95,9 +98,13 @@ class ZmianySkanu
                     'skan_id' => $skanId,
                     'zrodlo'  => 'skaner',
                 ],
-            ]);
-            $inc[self::kluczDedupu($n['ip'], $n['kod'])] = (int) $w['incydent_id'];
-            if ($w['utworzono_incydent']) {
+            ];
+        }
+        $wyniki = $this->zapis()->zapiszWiele($dane);
+        foreach ($wyb['do_incydentu'] as $i => $n) {
+            $k = self::kluczDedupu($n['ip'], $n['kod']);
+            $inc[$k] = (int) $wyniki[$i]['incydent_id'];
+            if ($wyniki[$i]['utworzono_incydent']) {
                 $utw++;
             }
         }
@@ -112,8 +119,22 @@ class ZmianySkanu
                 'uwagi' => isset($inc[$k]) ? 'incydent' : ($uwagaNowy !== '' ? $uwagaNowy : 'bez incydentu (strefa informacyjna/niska waga)'),
             ];
         }
+        // Id incydentów dla zdjętych listingów — zbiorczo (jeden SELECT whereIn zamiast per wiersz).
+        $mapaIncydenty = [];
+        $kluczeZdjete  = [];
         foreach ($zdjete as $z) {
-            $id        = $this->incydentId($z['ip'], $z['kod']);
+            $kluczeZdjete[] = self::kluczDedupu($z['ip'], $z['kod']);
+        }
+        foreach (array_chunk(array_unique($kluczeZdjete), 500) as $paczkaKluczy) {
+            $rows = $this->db->table('mcs_incydenty')->select('id, klucz_dedupu')
+                ->where('zrodlo', self::ZRODLO)->whereIn('klucz_dedupu', $paczkaKluczy)
+                ->get()->getResultArray();
+            foreach ($rows as $r) {
+                $mapaIncydenty[(string) $r['klucz_dedupu']] = (int) $r['id'];
+            }
+        }
+        foreach ($zdjete as $z) {
+            $id        = $mapaIncydenty[self::kluczDedupu($z['ip'], $z['kod'])] ?? null;
             $wiersze[] = [
                 'at' => $teraz, 'ip' => $z['ip'], 'strefa_kod' => $z['kod'], 'typ' => 'zdjety', 'skan_id' => $skanId,
                 'kody' => '', 'incydent_id' => $id,
@@ -147,15 +168,6 @@ class ZmianySkanu
         }
 
         return $usunieto;
-    }
-
-    private function incydentId(string $ip, string $kod): ?int
-    {
-        $r = $this->db->table('mcs_incydenty')->select('id')
-            ->where('zrodlo', self::ZRODLO)->where('klucz_dedupu', self::kluczDedupu($ip, $kod))
-            ->get()->getRowArray();
-
-        return is_array($r) ? (int) $r['id'] : null;
     }
 
     private function zapis(): IncydentZapis

@@ -177,6 +177,8 @@ class Ip extends BaseController
                 $lmsKomunikat = (string) ($lmsWynik['blad'] ?? 'Błąd mapowania LMS.');
             }
         }
+        // Issue #447: przy zimnym cache lookup PTR idzie przez PtrResolver z twardym
+        // timeoutem (mcs.revDns.timeoutMs, domyślnie 300 ms) — request nie wisi na DNS.
         $revDns        = $revDnsLib->dlaIp($ip);
 
         $stCidr   = SpeedtestSerwis::cidrZIp($ip);

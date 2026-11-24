@@ -8,6 +8,10 @@ use CodeIgniter\Cache\CacheInterface;
 /**
  * Reverse DNS (PTR) na żądanie + krótki cache.
  * Włączane kluczem mcs_ustawienia: pokazuj_rev_dns (domyślnie wyłączone).
+ *
+ * Lookup spoza requestu blokującego: domyślnie PtrResolver (UDP + twardy timeout
+ * mcs.revDns.timeoutMs), nie gethostbyaddr (issue #447). Dashboard czyta tylko cache
+ * (mapaZCache), strona /ip/{ip} może poczekać maks. timeout na zimnym cache.
  */
 final class RevDns
 {
@@ -33,7 +37,7 @@ final class RevDns
     private ?bool $cacheWlaczone = null;
 
     /**
-     * @param callable(string):(?string)|null          $resolver  Lookup PTR; null = gethostbyaddr
+     * @param callable(string):(?string)|null          $resolver  Lookup PTR; null = PtrResolver (UDP, timeout)
      * @param CacheInterface|array{get:callable,set:callable}|null $cache
      */
     public function __construct(
@@ -138,17 +142,25 @@ final class RevDns
     private function wykonajLookup(string $ip): ?string
     {
         if ($this->resolver !== null) {
-            $host = ($this->resolver)($ip);
+            try {
+                $host = ($this->resolver)($ip);
+            } catch (\Throwable) {
+                return null; // błąd lookupu nigdy nie może zepsuć strony
+            }
 
             return $this->normalizujHost(is_string($host) ? $host : null, $ip);
         }
 
-        $host = @gethostbyaddr($ip);
-        if ($host === false) {
+        // Domyślnie NIE gethostbyaddr — blokuje worker php-fpm bez timeoutu przy wolnym/martwym
+        // resolverze (issue #447, /ip/{ip} przy zimnym cache). Własny resolver UDP ze stream_select
+        // i twardym timeoutem mcs.revDns.timeoutMs (domyślnie 300 ms); przy braku odpowiedzi null.
+        try {
+            $host = (new PtrResolver())->lookup($ip);
+        } catch (\Throwable) {
             return null;
         }
 
-        return $this->normalizujHost((string) $host, $ip);
+        return $this->normalizujHost(is_string($host) ? $host : null, $ip);
     }
 
     private function normalizujHost(?string $host, string $ip): ?string

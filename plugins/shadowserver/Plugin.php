@@ -334,7 +334,10 @@ class Plugin implements SourcePluginInterface
                 return 0;
             }
 
-            $licznik = 0;
+            // Zbiorczy zapis (issue #442): najpierw wiersze źródła paczkami (INSERT … RETURNING id),
+            // potem wszystkie incydenty jednym zapiszWiele (upsert ON CONFLICT + paczki 500).
+            $wierszeDb = [];
+            $incydenty = [];
             foreach ($wiersze as $w) {
                 $kategoria = $this->parser->kategoriaDlaWiersza($w);
                 $sygnaly = [];
@@ -345,10 +348,11 @@ class Plugin implements SourcePluginInterface
                     $sygnaly['tag'] = $w['tag'];
                 }
                 $wynikWagi = $this->waga->wylicz($kategoria, $sygnaly);
+                $czas      = $this->normalizujCzas($w['timestamp']);
 
-                $db->table('mcs_shadowserver_wiersze')->insert([
+                $wierszeDb[] = [
                     'import_id'        => $importId,
-                    'zaobserwowano_at' => $this->normalizujCzas($w['timestamp']),
+                    'zaobserwowano_at' => $czas,
                     'ip'               => $w['ip'],
                     'port'             => $w['port'],
                     'protokol'         => $w['protokol'],
@@ -356,20 +360,19 @@ class Plugin implements SourcePluginInterface
                     'severity'         => $w['severity'],
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'payload_json'     => json_encode($w['raw'], JSON_UNESCAPED_UNICODE),
-                ]);
-                $idWZrodle = (string) $db->insertID();
+                ];
 
                 $tytul = 'Shadowserver';
                 if (! empty($w['tag'])) {
                     $tytul .= ' — ' . $w['tag'];
                 }
 
-                $this->zapis->zapisz([
+                $incydenty[] = [
                     'zrodlo'           => $this->zrodlo(),
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'podmiot_typ'      => 'ip',
                     'podmiot'          => $w['ip'],
-                    'zaobserwowano_at' => $this->normalizujCzas($w['timestamp']),
+                    'zaobserwowano_at' => $czas,
                     'waga'             => $wynikWagi['waga'],
                     'wersja_wagi'      => $wynikWagi['wersja'],
                     'kategoria'        => $kategoria,
@@ -377,15 +380,23 @@ class Plugin implements SourcePluginInterface
                     'port'             => $w['port'],
                     'protokol'         => $w['protokol'],
                     'import_id'        => $importId,
-                    'id_w_zrodle'      => $idWZrodle,
+                    'id_w_zrodle'      => null, // uzupełnione niżej po zbiorczym INSERT wierszy źródła
                     'payload'          => [
                         'tag'       => $w['tag'],
                         'severity'  => $w['severity'],
                         'waga_meta' => $wynikWagi,
                     ],
-                ]);
-                $licznik++;
+                ];
             }
+
+            foreach (array_chunk($wierszeDb, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI, true) as $paczka) {
+                $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_shadowserver_wiersze', array_values($paczka));
+                foreach (array_keys($paczka) as $j => $i) {
+                    $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+                }
+            }
+            $this->zapis->zapiszWiele($incydenty);
+            $licznik = count($wiersze);
 
             $this->koperta->zakonczOk($importId, ['wierszy' => $licznik]);
 

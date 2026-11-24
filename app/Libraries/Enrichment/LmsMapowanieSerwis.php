@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Enrichment;
 
+use App\Libraries\BladUi;
 use App\Libraries\PluginOpisPolaczenia;
 use App\Models\EnrichmentLmsModel;
 
@@ -335,7 +336,8 @@ class LmsMapowanieSerwis
                 'ok'      => false,
                 'z_cache' => false,
                 'tryb'    => 'db',
-                'blad'    => 'Błąd DB LMS: ' . $e->getMessage(),
+                // #433: do UI/JSON tylko generyczny komunikat + ID zdarzenia (pełny błąd w logu)
+                'blad'    => BladUi::komunikat($e, 'LMS lookup DB ' . $ip),
                 'ip'      => $ip,
                 'wynik'   => null,
             ];
@@ -435,7 +437,8 @@ class LmsMapowanieSerwis
             return [
                 'ok'         => false,
                 'tryb'       => 'db',
-                'blad'       => 'Błąd DB LMS sync: ' . $e->getMessage(),
+                // #433: do UI/JSON tylko generyczny komunikat + ID zdarzenia (pełny błąd w logu)
+                'blad'       => BladUi::komunikat($e, 'LMS sync DB'),
                 'zapisano'   => 0,
                 'trafionych' => 0,
             ];

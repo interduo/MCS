@@ -82,6 +82,8 @@ final class OpcjeMcsTest extends CIUnitTestCase
         $oczekiwane = [
             'mcs.as198050.asn'                      => 198050,
             'mcs.revDns.cacheTtl'                   => 3600,
+            'mcs.revDns.timeoutMs'                  => 300,
+            'mcs.api.rateLimit'                     => 60,
             'mcs.kolejkaDnia.oknoDni'               => 2,
             'mcs.problemyIp.oknoTimelineDni'        => 14,
             'mcs.nowe.dni'                          => 7,

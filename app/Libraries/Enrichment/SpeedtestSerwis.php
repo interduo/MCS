@@ -238,17 +238,20 @@ class SpeedtestSerwis
      */
     public function importujTresc(string $tresc, string $zrodloDanych = 'csv'): array
     {
-        $wiersze = $this->parser->parsujCsv($tresc);
+        $wiersze  = $this->parser->parsujCsv($tresc);
         $zapisano = 0;
         $obce     = 0;
+        $doZapisu = [];
         foreach ($wiersze as $wiersz) {
             if (! $this->matcher->czyNaszeIp($wiersz['ip'])) {
                 $obce++;
                 continue;
             }
-            $this->zapiszWiersz($wiersz, $zrodloDanych);
+            $doZapisu[] = $this->wierszDoZapisu($wiersz, $zrodloDanych);
             $zapisano++;
         }
+        // batch upsert (issue #448): jedno INSERT … ON CONFLICT na partię zamiast per wiersz
+        $this->model->upsertWiele($doZapisu);
 
         return [
             'ok'             => true,
@@ -413,18 +416,8 @@ class SpeedtestSerwis
         if (! preg_match('/^[0-9a-f:]+\/48$/i', $cidr)) {
             return [];
         }
-        $limit  = max(1, $limit);
-        $wynik  = [];
-        foreach ($this->model->wszystkieOd(null, 10000) as $w) {
-            if (self::cidrZIp((string) ($w['ip'] ?? '')) === strtolower($cidr)) {
-                $wynik[] = $w;
-                if (count($wynik) >= $limit) {
-                    break;
-                }
-            }
-        }
 
-        return $wynik;
+        return $this->model->dlaCidr(strtolower($cidr), $limit);
     }
 
     /**
@@ -452,7 +445,7 @@ class SpeedtestSerwis
             return 0;
         }
         if ($oknoDni <= 0) {
-            return count($this->historiaDlaCidr($cidr, 10000));
+            return $this->model->liczbaDlaCidr($cidr);
         }
         foreach ($this->agregaty($oknoDni) as $wiersz) {
             if (($wiersz['cidr'] ?? '') === $cidr) {
@@ -486,58 +479,31 @@ class SpeedtestSerwis
      */
     public function agregaty(int $oknoDni = 0, string $cidrContains = '', string $sort = 'testy', bool $tylkoAs = true): array
     {
-        $grupy = [];
-        foreach ($this->wierszeWOknie($oknoDni, $cidrContains, $tylkoAs) as $w) {
-            $cidr = self::cidrZIp((string) ($w['ip'] ?? ''));
-            if ($cidr === null) {
-                continue;
-            }
-            if (! isset($grupy[$cidr])) {
-                $grupy[$cidr] = [
-                    'cidr'            => $cidr,
-                    'liczba_testow'   => 0,
-                    'download'        => [],
-                    'upload'          => [],
-                    'latency'         => [],
-                    'ostatni_test_at' => null,
-                ];
-            }
-            $grupy[$cidr]['liczba_testow']++;
-            if ($w['download_kbps'] !== null && $w['download_kbps'] !== '') {
-                $grupy[$cidr]['download'][] = (int) $w['download_kbps'];
-            }
-            if ($w['upload_kbps'] !== null && $w['upload_kbps'] !== '') {
-                $grupy[$cidr]['upload'][] = (int) $w['upload_kbps'];
-            }
-            if ($w['latency_ms'] !== null && $w['latency_ms'] !== '') {
-                $grupy[$cidr]['latency'][] = (float) $w['latency_ms'];
-            }
-            $at = (string) ($w['zaobserwowano_at'] ?? '');
-            if ($at !== '' && ($grupy[$cidr]['ostatni_test_at'] === null || $at > $grupy[$cidr]['ostatni_test_at'])) {
-                $grupy[$cidr]['ostatni_test_at'] = $at;
-            }
-        }
+        // agregacja w SQL (issue #448): GROUP BY cidr + AVG/MAX/mediana w WHERE, bez limitu wierszy
+        $wiersze = $this->model->agregatyPerCidr($this->odDlaOkna($oknoDni), $this->grupyCidrAs($tylkoAs), $cidrContains);
 
         $wynik = [];
-        foreach ($grupy as $g) {
-            $avgDown = self::srednia($g['download']);
-            $avgUp   = self::srednia($g['upload']);
-            $maxDown = $g['download'] === [] ? null : max($g['download']);
-            $maxUp   = $g['upload'] === [] ? null : max($g['upload']);
+        foreach ($wiersze as $w) {
+            $avgDown  = $w['avg_download_kbps'] !== null ? (float) $w['avg_download_kbps'] : null;
+            $avgUp    = $w['avg_upload_kbps'] !== null ? (float) $w['avg_upload_kbps'] : null;
+            $avgLat   = $w['avg_latency_ms'] !== null ? (float) $w['avg_latency_ms'] : null;
+            $maxDown  = $w['max_download_kbps'] !== null ? (int) $w['max_download_kbps'] : null;
+            $maxUp    = $w['max_upload_kbps'] !== null ? (int) $w['max_upload_kbps'] : null;
+            $ostatni  = ($w['ostatni_test_at'] ?? '') !== '' && $w['ostatni_test_at'] !== null ? (string) $w['ostatni_test_at'] : null;
             $wynik[] = [
-                'cidr'                => $g['cidr'],
-                'liczba_testow'       => $g['liczba_testow'],
+                'cidr'                => (string) $w['cidr'],
+                'liczba_testow'       => (int) $w['liczba_testow'],
                 'avg_download_kbps'   => $avgDown,
-                'p50_download_kbps'   => self::medianaInt($g['download']),
+                'p50_download_kbps'   => $w['p50_download_kbps'] !== null ? (int) $w['p50_download_kbps'] : null,
                 'avg_upload_kbps'     => $avgUp,
-                'p50_upload_kbps'     => self::medianaInt($g['upload']),
-                'avg_latency_ms'      => self::srednia($g['latency']),
-                'p50_latency_ms'      => self::medianaFloat($g['latency']),
+                'p50_upload_kbps'     => $w['p50_upload_kbps'] !== null ? (int) $w['p50_upload_kbps'] : null,
+                'avg_latency_ms'      => $avgLat,
+                'p50_latency_ms'      => $w['p50_latency_ms'] !== null ? (float) $w['p50_latency_ms'] : null,
                 'max_download_kbps'   => $maxDown,
                 'max_upload_kbps'     => $maxUp,
                 'peak_download_ratio' => self::peakRatio($maxDown, $avgDown),
                 'peak_upload_ratio'   => self::peakRatio($maxUp, $avgUp),
-                'ostatni_test_at'     => $g['ostatni_test_at'],
+                'ostatni_test_at'     => $ostatni,
             ];
         }
 
@@ -602,89 +568,58 @@ class SpeedtestSerwis
         $minDownK  = $minDown > 0 ? $minDown * 1000 : 0;
         $minUpK    = $minUp > 0 ? $minUp * 1000 : 0;
 
-        $lista   = [];
-        $powyzej = 0;
-        $perCidr = [];
-        foreach ($this->wierszeWOknie($okno, $cidr, $tylkoAs) as $w) {
-            $cidrW = self::cidrZIp((string) ($w['ip'] ?? ''));
-            if ($cidrW === null) {
-                continue;
-            }
-            $down = ($w['download_kbps'] !== null && $w['download_kbps'] !== '') ? (int) $w['download_kbps'] : null;
-            $up   = ($w['upload_kbps'] !== null && $w['upload_kbps'] !== '') ? (int) $w['upload_kbps'] : null;
-            $lat  = ($w['latency_ms'] !== null && $w['latency_ms'] !== '') ? (float) $w['latency_ms'] : null;
-            $at   = (string) ($w['zaobserwowano_at'] ?? '');
+        // agregacja w SQL (issue #448): statystyki per CIDR i top-N w WHERE, bez limitu wierszy
+        $od       = $this->odDlaOkna($okno);
+        $grupy    = $this->grupyCidrAs($tylkoAs);
+        $perCidr  = $this->model->anomaliePerCidr($od, $grupy, $cidr, $minDownK, $minUpK);
+        $top      = $this->model->topTestySql($od, $grupy, $cidr, $minDownK, $minUpK, $wszystkie, $sort, $topN);
 
-            if (! isset($perCidr[$cidrW])) {
-                $perCidr[$cidrW] = [
-                    'cidr'            => $cidrW,
-                    'liczba_testow'   => 0,
-                    'download'        => [],
-                    'upload'          => [],
-                    'liczba_powyzej'  => 0,
-                    'ostatni_test_at' => null,
-                ];
-            }
-            $perCidr[$cidrW]['liczba_testow']++;
-            if ($down !== null) {
-                $perCidr[$cidrW]['download'][] = $down;
-            }
-            if ($up !== null) {
-                $perCidr[$cidrW]['upload'][] = $up;
-            }
-            if ($at !== '' && ($perCidr[$cidrW]['ostatni_test_at'] === null || $at > $perCidr[$cidrW]['ostatni_test_at'])) {
-                $perCidr[$cidrW]['ostatni_test_at'] = $at;
-            }
-
-            $trafiony = self::czyPowyzejProgu($down, $up, $minDownK, $minUpK);
-            if ($trafiony) {
-                $perCidr[$cidrW]['liczba_powyzej']++;
-                $powyzej++;
-            }
-
-            if ($wszystkie || $trafiony) {
-                $lista[] = [
-                    'test_id'          => (string) ($w['test_id'] ?? ''),
-                    'cidr'             => $cidrW,
-                    'download_kbps'    => $down,
-                    'upload_kbps'      => $up,
-                    'latency_ms'       => $lat,
-                    'zaobserwowano_at' => $at,
-                ];
-            }
-        }
-
-        self::sortujTesty($lista, $sort);
-        $top = array_slice($lista, 0, $topN);
-
+        $powyzej   = 0;
+        $pasujacych = 0;
         $cidrPeaki = [];
         foreach ($perCidr as $g) {
-            if ((int) $g['liczba_powyzej'] <= 0) {
+            $liczbaPowyzej = (int) $g['liczba_powyzej'];
+            $powyzej      += $liczbaPowyzej;
+            $pasujacych   += $wszystkie ? (int) $g['liczba_testow'] : $liczbaPowyzej;
+            if ($liczbaPowyzej <= 0) {
                 continue;
             }
-            $avgDown = self::srednia($g['download']);
-            $avgUp   = self::srednia($g['upload']);
-            $maxDown = $g['download'] === [] ? null : max($g['download']);
-            $maxUp   = $g['upload'] === [] ? null : max($g['upload']);
+            $avgDown = $g['avg_download_kbps'] !== null ? (float) $g['avg_download_kbps'] : null;
+            $avgUp   = $g['avg_upload_kbps'] !== null ? (float) $g['avg_upload_kbps'] : null;
+            $maxDown = $g['max_download_kbps'] !== null ? (int) $g['max_download_kbps'] : null;
+            $maxUp   = $g['max_upload_kbps'] !== null ? (int) $g['max_upload_kbps'] : null;
+            $ostatni = ($g['ostatni_test_at'] ?? '') !== '' && $g['ostatni_test_at'] !== null ? (string) $g['ostatni_test_at'] : null;
             $cidrPeaki[] = [
-                'cidr'                => $g['cidr'],
-                'liczba_testow'       => $g['liczba_testow'],
+                'cidr'                => (string) $g['cidr'],
+                'liczba_testow'       => (int) $g['liczba_testow'],
                 'max_download_kbps'   => $maxDown,
                 'max_upload_kbps'     => $maxUp,
                 'avg_download_kbps'   => $avgDown,
                 'avg_upload_kbps'     => $avgUp,
                 'peak_download_ratio' => self::peakRatio($maxDown, $avgDown),
                 'peak_upload_ratio'   => self::peakRatio($maxUp, $avgUp),
-                'liczba_powyzej'      => $g['liczba_powyzej'],
-                'ostatni_test_at'     => $g['ostatni_test_at'],
+                'liczba_powyzej'      => $liczbaPowyzej,
+                'ostatni_test_at'     => $ostatni,
             ];
         }
         self::sortujAgregaty($cidrPeaki, $sort === 'testy' ? 'download' : $sort);
 
+        $topTesty = [];
+        foreach ($top as $w) {
+            $topTesty[] = [
+                'test_id'          => (string) $w['test_id'],
+                'cidr'             => (string) $w['cidr'],
+                'download_kbps'    => $w['download_kbps'] !== null ? (int) $w['download_kbps'] : null,
+                'upload_kbps'      => $w['upload_kbps'] !== null ? (int) $w['upload_kbps'] : null,
+                'latency_ms'       => $w['latency_ms'] !== null ? (float) $w['latency_ms'] : null,
+                'zaobserwowano_at' => (string) ($w['zaobserwowano_at'] ?? ''),
+            ];
+        }
+
         return [
             'liczba_powyzej'    => $powyzej,
-            'liczba_pasujacych' => count($lista),
-            'top_testy'         => $top,
+            'liczba_pasujacych' => $pasujacych,
+            'top_testy'         => $topTesty,
             'cidr_peaki'        => $cidrPeaki,
         ];
     }
@@ -706,37 +641,19 @@ class SpeedtestSerwis
      */
     public function kpi(int $oknoDni = 0, string $cidrContains = '', bool $tylkoAs = true): array
     {
-        $wiersze  = $this->wierszeWOknie($oknoDni, $cidrContains, $tylkoAs);
-        $cidrSet  = [];
-        $download = [];
-        $upload   = [];
-        $latency  = [];
-        foreach ($wiersze as $w) {
-            $cidr = self::cidrZIp((string) ($w['ip'] ?? ''));
-            if ($cidr !== null) {
-                $cidrSet[$cidr] = true;
-            }
-            if ($w['download_kbps'] !== null && $w['download_kbps'] !== '') {
-                $download[] = (int) $w['download_kbps'];
-            }
-            if ($w['upload_kbps'] !== null && $w['upload_kbps'] !== '') {
-                $upload[] = (int) $w['upload_kbps'];
-            }
-            if ($w['latency_ms'] !== null && $w['latency_ms'] !== '') {
-                $latency[] = (float) $w['latency_ms'];
-            }
-        }
+        // KPI w SQL (issue #448) — bez pobierania wierszy i bez limitu 10 000
+        $w = $this->model->kpiWOkie($this->odDlaOkna($oknoDni), $this->grupyCidrAs($tylkoAs), $cidrContains);
 
         return [
             'okno_dni'          => $oknoDni,
-            'liczba_testow'     => count($wiersze),
-            'liczba_cidr'       => count($cidrSet),
-            'avg_download_kbps' => self::srednia($download),
-            'p50_download_kbps' => self::medianaInt($download),
-            'avg_upload_kbps'   => self::srednia($upload),
-            'p50_upload_kbps'   => self::medianaInt($upload),
-            'avg_latency_ms'    => self::srednia($latency),
-            'p50_latency_ms'    => self::medianaFloat($latency),
+            'liczba_testow'     => (int) ($w['liczba_testow'] ?? 0),
+            'liczba_cidr'       => (int) ($w['liczba_cidr'] ?? 0),
+            'avg_download_kbps' => ($w['avg_download_kbps'] ?? null) !== null ? (float) $w['avg_download_kbps'] : null,
+            'p50_download_kbps' => ($w['p50_download_kbps'] ?? null) !== null ? (int) $w['p50_download_kbps'] : null,
+            'avg_upload_kbps'   => ($w['avg_upload_kbps'] ?? null) !== null ? (float) $w['avg_upload_kbps'] : null,
+            'p50_upload_kbps'   => ($w['p50_upload_kbps'] ?? null) !== null ? (int) $w['p50_upload_kbps'] : null,
+            'avg_latency_ms'    => ($w['avg_latency_ms'] ?? null) !== null ? (float) $w['avg_latency_ms'] : null,
+            'p50_latency_ms'    => ($w['p50_latency_ms'] ?? null) !== null ? (float) $w['p50_latency_ms'] : null,
         ];
     }
 
@@ -753,43 +670,17 @@ class SpeedtestSerwis
      */
     public function agregatyDzienne(int $oknoDni = 0, string $cidrContains = '', bool $tylkoAs = true): array
     {
-        $grupy = [];
-        foreach ($this->wierszeWOknie($oknoDni, $cidrContains, $tylkoAs) as $w) {
-            $at = (string) ($w['zaobserwowano_at'] ?? '');
-            if ($at === '') {
-                continue;
-            }
-            $dzien = substr($at, 0, 10);
-            if (! isset($grupy[$dzien])) {
-                $grupy[$dzien] = [
-                    'dzien'    => $dzien,
-                    'liczba'   => 0,
-                    'download' => [],
-                    'upload'   => [],
-                    'latency'  => [],
-                ];
-            }
-            $grupy[$dzien]['liczba']++;
-            if ($w['download_kbps'] !== null && $w['download_kbps'] !== '') {
-                $grupy[$dzien]['download'][] = (int) $w['download_kbps'];
-            }
-            if ($w['upload_kbps'] !== null && $w['upload_kbps'] !== '') {
-                $grupy[$dzien]['upload'][] = (int) $w['upload_kbps'];
-            }
-            if ($w['latency_ms'] !== null && $w['latency_ms'] !== '') {
-                $grupy[$dzien]['latency'][] = (float) $w['latency_ms'];
-            }
-        }
+        // agregacja dzienna w SQL (issue #448), najnowszy dzień pierwszy (ORDER BY dzien DESC)
+        $wiersze = $this->model->agregatyDzienneSql($this->odDlaOkna($oknoDni), $this->grupyCidrAs($tylkoAs), $cidrContains);
 
-        krsort($grupy);
         $wynik = [];
-        foreach ($grupy as $g) {
+        foreach ($wiersze as $w) {
             $wynik[] = [
-                'dzien'             => $g['dzien'],
-                'liczba_testow'     => $g['liczba'],
-                'avg_download_kbps' => self::srednia($g['download']),
-                'avg_upload_kbps'   => self::srednia($g['upload']),
-                'avg_latency_ms'    => self::srednia($g['latency']),
+                'dzien'             => (string) $w['dzien'],
+                'liczba_testow'     => (int) $w['liczba_testow'],
+                'avg_download_kbps' => ($w['avg_download_kbps'] ?? null) !== null ? (float) $w['avg_download_kbps'] : null,
+                'avg_upload_kbps'   => ($w['avg_upload_kbps'] ?? null) !== null ? (float) $w['avg_upload_kbps'] : null,
+                'avg_latency_ms'    => ($w['avg_latency_ms'] ?? null) !== null ? (float) $w['avg_latency_ms'] : null,
             ];
         }
 
@@ -797,38 +688,30 @@ class SpeedtestSerwis
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * Data OD dla okna dni (null = cała historia).
      */
-    private function wierszeWOknie(int $oknoDni, string $cidrContains = '', bool $tylkoAs = true): array
+    private function odDlaOkna(int $oknoDni): ?string
     {
-        $od = null;
-        if ($oknoDni > 0) {
-            $od = gmdate('Y-m-d H:i:s', time() - ($oknoDni * 86400));
-        }
+        return $oknoDni > 0 ? gmdate('Y-m-d H:i:s', time() - ($oknoDni * 86400)) : null;
+    }
 
-        $lista = $this->model->wszystkieOd($od);
-        if ($tylkoAs) {
-            $lista = array_values(array_filter(
-                $lista,
-                fn (array $w): bool => $this->matcher->czyNaszeIp((string) ($w['ip'] ?? '')),
-            ));
+    /**
+     * Grupy CIDR filtra AS dla SQL — null gdy tylko_as=false; pusta grupa gdy AS wyłączone
+     * (czyNaszeIp zwraca wtedy false dla każdego IP, więc wynik ma być pusty).
+     *
+     * @return list<list<string>>|null
+     */
+    private function grupyCidrAs(bool $tylkoAs): ?array
+    {
+        if (! $tylkoAs) {
+            return null;
         }
-
-        $cidrContains = trim($cidrContains);
-        if ($cidrContains === '') {
-            return $lista;
+        if (! $this->matcher->jestWlaczone()) {
+            return [[]];
         }
+        $cidry = array_values(array_filter($this->matcher->cidry(), 'is_string'));
 
-        $wynik = [];
-        foreach ($lista as $w) {
-            $cidr = self::cidrZIp((string) ($w['ip'] ?? ''));
-            $ip   = (string) ($w['ip'] ?? '');
-            if (($cidr !== null && str_contains($cidr, $cidrContains)) || str_contains($ip, $cidrContains)) {
-                $wynik[] = $w;
-            }
-        }
-
-        return $wynik;
+        return $cidry === [] ? [[]] : [$cidry];
     }
 
     private static function normalizujBool(mixed $raw, bool $domyslne): bool
@@ -869,21 +752,6 @@ class SpeedtestSerwis
         return min(100_000, $n);
     }
 
-    private static function czyPowyzejProgu(?int $downKbps, ?int $upKbps, int $minDownKbps, int $minUpKbps): bool
-    {
-        if ($minDownKbps <= 0 && $minUpKbps <= 0) {
-            return false;
-        }
-        if ($minDownKbps > 0 && $downKbps !== null && $downKbps >= $minDownKbps) {
-            return true;
-        }
-        if ($minUpKbps > 0 && $upKbps !== null && $upKbps >= $minUpKbps) {
-            return true;
-        }
-
-        return false;
-    }
-
     private static function peakRatio(?int $max, ?float $avg): ?float
     {
         if ($max === null || $avg === null || $avg <= 0.0) {
@@ -911,67 +779,6 @@ class SpeedtestSerwis
 
             return strcmp((string) ($a['cidr'] ?? ''), (string) ($b['cidr'] ?? ''));
         });
-    }
-
-    /**
-     * @param list<array<string, mixed>> $testy
-     */
-    private static function sortujTesty(array &$testy, string $sort): void
-    {
-        usort($testy, static function (array $a, array $b) use ($sort): int {
-            $cmp = match ($sort) {
-                'upload' => ((int) ($b['upload_kbps'] ?? 0)) <=> ((int) ($a['upload_kbps'] ?? 0)),
-                'data'   => strcmp((string) ($b['zaobserwowano_at'] ?? ''), (string) ($a['zaobserwowano_at'] ?? '')),
-                default  => ((int) ($b['download_kbps'] ?? 0)) <=> ((int) ($a['download_kbps'] ?? 0)),
-            };
-            if ($cmp !== 0) {
-                return $cmp;
-            }
-
-            return strcmp((string) ($b['zaobserwowano_at'] ?? ''), (string) ($a['zaobserwowano_at'] ?? ''));
-        });
-    }
-
-    /**
-     * @param list<int|float> $wartosci
-     */
-    private static function srednia(array $wartosci): ?float
-    {
-        if ($wartosci === []) {
-            return null;
-        }
-
-        return array_sum($wartosci) / count($wartosci);
-    }
-
-    /**
-     * @param list<int> $wartosci
-     */
-    private static function medianaInt(array $wartosci): ?int
-    {
-        if ($wartosci === []) {
-            return null;
-        }
-        sort($wartosci, SORT_NUMERIC);
-        $n = count($wartosci);
-        $srodek = (int) floor(($n - 1) / 2);
-
-        return (int) $wartosci[$srodek];
-    }
-
-    /**
-     * @param list<float> $wartosci
-     */
-    private static function medianaFloat(array $wartosci): ?float
-    {
-        if ($wartosci === []) {
-            return null;
-        }
-        sort($wartosci, SORT_NUMERIC);
-        $n = count($wartosci);
-        $srodek = (int) floor(($n - 1) / 2);
-
-        return (float) $wartosci[$srodek];
     }
 
     private ?string $portalOstatniBlad = null;
@@ -1036,11 +843,15 @@ class SpeedtestSerwis
      *   server_name: ?string,
      *   raw: array<string, string>
      * } $wiersz
+     *
+     * @return array<string, mixed>
      */
-    private function zapiszWiersz(array $wiersz, string $zrodloDanych): void
+    private function wierszDoZapisu(array $wiersz, string $zrodloDanych): array
     {
         $rawJson = json_encode($wiersz['raw'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $this->model->upsertPoTestId($wiersz['test_id'], [
+
+        return [
+            'test_id'          => $wiersz['test_id'],
             'ip'               => $wiersz['ip'],
             'zaobserwowano_at' => $wiersz['zaobserwowano_at'],
             'download_kbps'    => $wiersz['download_kbps'],
@@ -1051,6 +862,6 @@ class SpeedtestSerwis
             'server_name'      => $wiersz['server_name'],
             'raw_json'         => $rawJson === false ? null : $rawJson,
             'zrodlo_danych'    => $zrodloDanych,
-        ]);
+        ];
     }
 }
