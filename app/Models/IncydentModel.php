@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Siec\CidrMatcher;
 use CodeIgniter\Model;
 
 class IncydentModel extends Model
@@ -400,7 +401,10 @@ class IncydentModel extends Model
     /**
      * KPI przeglądu: okno czasowe + opcjonalny filtr źródła / IP / kategorii / portu.
      *
-     * @param (callable(string): bool)|null $akceptujIp  Gdy podane — licz tylko IP spełniające warunek (np. AS).
+     * Agregacje w SQL (jedno zapytanie KPI + jedno GROUP BY dla IP wielozródłowych),
+     * bez pobierania wierszy incydentów do PHP (issue #440).
+     *
+     * @param list<list<string>>|null $grupyCidr  Grupy CIDR — AND między grupami, OR w grupie (filtr AS/CIDR jako warunek SQL).
      *
      * @return array{
      *   okno_dni: int,
@@ -415,66 +419,56 @@ class IncydentModel extends Model
         int $oknoDni = 7,
         ?string $zrodlo = null,
         ?string $ip = null,
-        ?callable $akceptujIp = null,
+        ?array $grupyCidr = null,
         ?string $kategoria = null,
         ?int $port = null,
     ): array {
-        $wiersze = $this->wierszeWidoczneWOknie($oknoDni, $zrodlo, $ip, null, $kategoria, $port);
-        $poIp    = [];
-        $ranga   = self::rangaWag();
-        $maxRanga = 0;
-        $maxWaga  = null;
-        $criticalHigh = 0;
-        $liczbaIncydentow = 0;
+        $oknoDni = max(1, $oknoDni);
 
-        foreach ($wiersze as $wiersz) {
-            $podmiot = (string) ($wiersz['podmiot'] ?? '');
-            $z       = (string) ($wiersz['zrodlo'] ?? '');
-            $waga    = (string) ($wiersz['waga'] ?? '');
-            if ($podmiot === '') {
-                continue;
-            }
-            if ($akceptujIp !== null && ! $akceptujIp($podmiot)) {
-                continue;
-            }
-            $liczbaIncydentow++;
-            if (! isset($poIp[$podmiot])) {
-                $poIp[$podmiot] = [];
-            }
-            if ($z !== '') {
-                $poIp[$podmiot][$z] = true;
-            }
-            $nr = $ranga[$waga] ?? 0;
-            if ($nr > $maxRanga) {
-                $maxRanga = $nr;
-                $maxWaga  = $waga;
-            }
-            if ($nr >= 3) {
-                $criticalHigh++;
-            }
+        $wiersz = $this->builderWidocznychWOknie($oknoDni, $zrodlo, $ip, null, $kategoria, $port, $grupyCidr)
+            ->select(
+                "COUNT(*) AS liczba_incydentow, COUNT(DISTINCT i.podmiot) AS liczba_ip, "
+                . "COUNT(*) FILTER (WHERE i.waga IN ('high', 'critical')) AS critical_high, "
+                . 'MAX(' . self::sqlRangaWagi('i.waga') . ') AS max_ranga',
+                false,
+            )
+            ->where('i.podmiot !=', '')
+            ->get()
+            ->getRowArray();
+        if (! is_array($wiersz)) {
+            $wiersz = [];
         }
 
-        $wielozrodlowe = 0;
-        foreach ($poIp as $zrodla) {
-            if (count($zrodla) >= 2) {
-                $wielozrodlowe++;
-            }
-        }
+        // IP wielozródłowe: jedna kolumna agregująca per podmiot (HAVING w SQL).
+        $wielozrodlowe = $this->builderWidocznychWOknie($oknoDni, $zrodlo, $ip, null, $kategoria, $port, $grupyCidr)
+            ->select("COUNT(DISTINCT NULLIF(i.zrodlo, '')) AS liczba_zrodel", false)
+            ->where('i.podmiot !=', '')
+            ->groupBy('i.podmiot')
+            ->having("COUNT(DISTINCT NULLIF(i.zrodlo, '')) >= 2", null, false)
+            ->get()
+            ->getResultArray();
+
+        $maxRanga = (int) ($wiersz['max_ranga'] ?? 0);
 
         return [
-            'okno_dni'           => max(1, $oknoDni),
-            'liczba_incydentow'  => $liczbaIncydentow,
-            'liczba_ip'          => count($poIp),
-            'ip_wielozrodlowe'   => $wielozrodlowe,
-            'critical_high'      => $criticalHigh,
-            'max_waga'           => $maxWaga,
+            'okno_dni'           => $oknoDni,
+            'liczba_incydentow'  => (int) ($wiersz['liczba_incydentow'] ?? 0),
+            'liczba_ip'          => (int) ($wiersz['liczba_ip'] ?? 0),
+            'ip_wielozrodlowe'   => is_array($wielozrodlowe) ? count($wielozrodlowe) : 0,
+            'critical_high'      => (int) ($wiersz['critical_high'] ?? 0),
+            'max_waga'           => $maxRanga > 0 ? self::wagaZRangi($maxRanga) : null,
         ];
     }
 
     /**
      * Ranking problematycznych IP (korelacja źródeł w oknie).
      *
+     * Agregacja, HAVING, sortowanie i LIMIT w SQL (GROUP BY podmiot); do PHP trafia tylko
+     * wiersz per IP z rankingu + detale (źródła/kategorie) dla zwróconych IP (issue #440).
+     *
      * Sort: liczba_zrodel DESC, max_waga DESC, liczba_incydentow DESC, ostatnio DESC.
+     *
+     * @param list<list<string>>|null $grupyCidr  Grupy CIDR — AND między grupami, OR w grupie (filtr AS/CIDR jako warunek SQL).
      *
      * @return list<array{
      *   ip: string,
@@ -486,9 +480,6 @@ class IncydentModel extends Model
      *   ostatnio_widziane: ?string
      * }>
      */
-    /**
-     * @param (callable(string): bool)|null $akceptujIp
-     */
     public function topProblematyczneIp(
         int $oknoDni = 7,
         ?string $zrodlo = null,
@@ -496,92 +487,86 @@ class IncydentModel extends Model
         ?string $minWaga = null,
         int $minZrodel = 1,
         int $limit = 50,
-        ?callable $akceptujIp = null,
+        ?array $grupyCidr = null,
         ?string $kategoria = null,
         ?int $port = null,
     ): array {
-        $wiersze   = $this->wierszeWidoczneWOknie($oknoDni, $zrodlo, $ip, $minWaga, $kategoria, $port);
-        $ranga     = self::rangaWag();
         $minZrodel = max(1, $minZrodel);
         $limit     = max(1, min(1000, $limit));
-        $poIp      = [];
 
-        foreach ($wiersze as $wiersz) {
-            $podmiot = (string) ($wiersz['podmiot'] ?? '');
-            if ($podmiot === '') {
+        $ranking = $this->builderWidocznychWOknie($oknoDni, $zrodlo, $ip, $minWaga, $kategoria, $port, $grupyCidr)
+            ->select(
+                'i.podmiot, COUNT(*) AS liczba_incydentow, COUNT(DISTINCT NULLIF(i.zrodlo, \'\')) AS liczba_zrodel, '
+                . 'MAX(' . self::sqlRangaWagi('i.waga') . ') AS max_ranga, MAX(i.ostatnio_widziane) AS ostatnio_widziane',
+                false,
+            )
+            ->where('i.podmiot !=', '')
+            ->groupBy('i.podmiot')
+            ->having(sprintf("COUNT(DISTINCT NULLIF(i.zrodlo, '')) >= %d", $minZrodel), null, false)
+            ->orderBy('liczba_zrodel DESC, max_ranga DESC, liczba_incydentow DESC, ostatnio_widziane DESC, i.podmiot ASC', '', false)
+            ->limit($limit)
+            ->get()
+            ->getResultArray();
+        if (! is_array($ranking)) {
+            $ranking = [];
+        }
+
+        // Detale (źródła / kategorie) tylko dla IP z rankingu — WHERE podmiot IN (lista top).
+        $zrodlaMapa    = [];
+        $kategorieMapa = [];
+        $ipy           = [];
+        foreach ($ranking as $w) {
+            $ipy[] = (string) ($w['podmiot'] ?? '');
+        }
+        foreach (array_chunk($ipy, 500) as $paczka) {
+            if ($paczka === []) {
                 continue;
             }
-            if ($akceptujIp !== null && ! $akceptujIp($podmiot)) {
+            $detale = $this->builderWidocznychWOknie($oknoDni, $zrodlo, $ip, $minWaga, $kategoria, $port, $grupyCidr)
+                ->select('i.podmiot, i.zrodlo, i.kategoria, COUNT(*) AS liczba', false)
+                ->where('i.podmiot !=', '')
+                ->whereIn('i.podmiot', $paczka)
+                ->groupBy('i.podmiot')
+                ->groupBy('i.zrodlo')
+                ->groupBy('i.kategoria')
+                ->get()
+                ->getResultArray();
+            if (! is_array($detale)) {
                 continue;
             }
-            if (! isset($poIp[$podmiot])) {
-                $poIp[$podmiot] = [
-                    'ip'                => $podmiot,
-                    'liczba_incydentow' => 0,
-                    'zrodla'            => [],
-                    'kategorie'         => [],
-                    'max_ranga'         => 0,
-                    'max_waga'          => null,
-                    'ostatnio_widziane' => null,
-                ];
-            }
-            $poIp[$podmiot]['liczba_incydentow']++;
-            $z = (string) ($wiersz['zrodlo'] ?? '');
-            if ($z !== '') {
-                $poIp[$podmiot]['zrodla'][$z] = true;
-            }
-            $kat = isset($wiersz['kategoria']) ? trim((string) $wiersz['kategoria']) : '';
-            if ($kat !== '') {
-                $poIp[$podmiot]['kategorie'][$kat] = ($poIp[$podmiot]['kategorie'][$kat] ?? 0) + 1;
-            }
-            $waga = (string) ($wiersz['waga'] ?? '');
-            $nr   = $ranga[$waga] ?? 0;
-            if ($nr > $poIp[$podmiot]['max_ranga']) {
-                $poIp[$podmiot]['max_ranga'] = $nr;
-                $poIp[$podmiot]['max_waga']  = $waga !== '' ? $waga : null;
-            }
-            $ostatnio = isset($wiersz['ostatnio_widziane']) ? (string) $wiersz['ostatnio_widziane'] : '';
-            if ($ostatnio !== ''
-                && ($poIp[$podmiot]['ostatnio_widziane'] === null
-                    || $ostatnio > (string) $poIp[$podmiot]['ostatnio_widziane'])
-            ) {
-                $poIp[$podmiot]['ostatnio_widziane'] = $ostatnio;
+            foreach ($detale as $d) {
+                $podmiot = (string) ($d['podmiot'] ?? '');
+                $z       = (string) ($d['zrodlo'] ?? '');
+                if ($z !== '') {
+                    $zrodlaMapa[$podmiot][$z] = true;
+                }
+                $kat = trim((string) ($d['kategoria'] ?? ''));
+                if ($kat !== '') {
+                    $kategorieMapa[$podmiot][$kat] = ($kategorieMapa[$podmiot][$kat] ?? 0) + (int) ($d['liczba'] ?? 0);
+                }
             }
         }
 
         $lista = [];
-        foreach ($poIp as $wiersz) {
-            $zrodla = array_keys($wiersz['zrodla']);
+        foreach ($ranking as $w) {
+            $podmiot   = (string) ($w['podmiot'] ?? '');
+            $zrodla    = array_keys($zrodlaMapa[$podmiot] ?? []);
             sort($zrodla);
-            $liczbaZrodel = count($zrodla);
-            if ($liczbaZrodel < $minZrodel) {
-                continue;
-            }
-            $katCount = $wiersz['kategorie'];
+            $katCount  = $kategorieMapa[$podmiot] ?? [];
             arsort($katCount, SORT_NUMERIC);
             $kategorie = array_slice(array_keys($katCount), 0, self::BADGE_TOP_KATEGORII);
-            $lista[] = [
-                'ip'                => $wiersz['ip'],
-                'liczba_incydentow' => $wiersz['liczba_incydentow'],
-                'liczba_zrodel'     => $liczbaZrodel,
-                'zrodla'            => $zrodla,
+            $maxRanga  = (int) ($w['max_ranga'] ?? 0);
+            $ostatnio  = $w['ostatnio_widziane'] ?? null;
+            $lista[]   = [
+                'ip'                => $podmiot,
+                'liczba_incydentow' => (int) ($w['liczba_incydentow'] ?? 0),
+                'liczba_zrodel'     => (int) ($w['liczba_zrodel'] ?? 0),
+                'zrodla'            => array_values($zrodla),
                 'kategorie'         => array_values($kategorie),
-                'max_waga'          => $wiersz['max_waga'],
-                'ostatnio_widziane' => $wiersz['ostatnio_widziane'],
-                '_max_ranga'        => $wiersz['max_ranga'],
+                'max_waga'          => $maxRanga > 0 ? self::wagaZRangi($maxRanga) : null,
+                'ostatnio_widziane' => (is_string($ostatnio) && $ostatnio !== '') ? $ostatnio : null,
             ];
         }
-
-        usort($lista, static function (array $a, array $b): int {
-            return [$b['liczba_zrodel'], $b['_max_ranga'], $b['liczba_incydentow'], (string) $b['ostatnio_widziane']]
-                <=> [$a['liczba_zrodel'], $a['_max_ranga'], $a['liczba_incydentow'], (string) $a['ostatnio_widziane']];
-        });
-
-        $lista = array_slice($lista, 0, $limit);
-        foreach ($lista as &$wiersz) {
-            unset($wiersz['_max_ranga']);
-        }
-        unset($wiersz);
 
         return $lista;
     }
@@ -686,18 +671,22 @@ class IncydentModel extends Model
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * Builder widocznych incydentów IP w oknie z filtrami (źródło / IP / min. waga / kategoria / port / CIDR).
+     *
+     * @param list<list<string>>|null $grupyCidr
+     *
+     * @return object Query Builder (świeża instancja per wywołanie)
      */
-    protected function wierszeWidoczneWOknie(
+    protected function builderWidocznychWOknie(
         int $oknoDni,
         ?string $zrodlo,
         ?string $ip,
         ?string $minWaga,
         ?string $kategoria = null,
         ?int $port = null,
-    ): array {
+        ?array $grupyCidr = null,
+    ) {
         $builder = $this->builderWidocznych()
-            ->select('i.podmiot, i.zrodlo, i.waga, i.kategoria, i.ostatnio_widziane')
             ->where('i.ostatnio_widziane >=', $this->odDatyOkna($oknoDni));
 
         if ($zrodlo !== null && $zrodlo !== '') {
@@ -713,8 +702,26 @@ class IncydentModel extends Model
             $builder->where('i.port', $port);
         }
         $this->dolaczFiltrMinWagi($builder, $minWaga);
+        $this->dolaczFiltrCidrSql($builder, 'i.podmiot', $grupyCidr);
 
-        $wiersze = $builder->get()->getResultArray();
+        return $builder;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    protected function wierszeWidoczneWOknie(
+        int $oknoDni,
+        ?string $zrodlo,
+        ?string $ip,
+        ?string $minWaga,
+        ?string $kategoria = null,
+        ?int $port = null,
+    ): array {
+        $wiersze = $this->builderWidocznychWOknie($oknoDni, $zrodlo, $ip, $minWaga, $kategoria, $port)
+            ->select('i.podmiot, i.zrodlo, i.waga, i.kategoria, i.ostatnio_widziane')
+            ->get()
+            ->getResultArray();
 
         return is_array($wiersze) ? $wiersze : [];
     }
@@ -726,6 +733,98 @@ class IncydentModel extends Model
         return (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
             ->modify("-{$oknoDni} days")
             ->format('Y-m-d H:i:s');
+    }
+
+    /** Regex IPv4 — strażnik przed cast ::inet (PostgreSQL rzuca błąd na wartościach nie-IP). */
+    private const REGEX_IPV4 = '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$';
+
+    /** Regex IPv6 (także forma skompresowana z jednym „::”). */
+    private const REGEX_IPV6 = '^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$';
+
+    private bool $udfCidrZarejestrowany = false;
+
+    /**
+     * Filtr AS/CIDR jako warunek SQL (ip <<= cidr), nie callable per wiersz (issue #440).
+     *
+     * @param object                  $builder Query Builder
+     * @param list<list<string>>|null $grupyCidr  AND między grupami, OR w grupie (semantyka jak filtrAkceptujIp: AS + CIDR).
+     */
+    protected function dolaczFiltrCidrSql($builder, string $kolumna, ?array $grupyCidr): void
+    {
+        if ($grupyCidr === null || $grupyCidr === []) {
+            return;
+        }
+        foreach ($grupyCidr as $grupa) {
+            if (! is_array($grupa)) {
+                continue;
+            }
+            $cidry = [];
+            foreach ($grupa as $cidr) {
+                if (is_string($cidr) && trim($cidr) !== '') {
+                    $cidry[] = trim($cidr);
+                }
+            }
+            if ($cidry === []) {
+                continue;
+            }
+            $builder->groupStart();
+            foreach ($cidry as $cidr) {
+                $builder->orWhere($this->sqlIpWCidr($kolumna, $cidr), null, false);
+            }
+            $builder->groupEnd();
+        }
+    }
+
+    /**
+     * Wyrażenie SQL „adres z kolumny należy do CIDR”.
+     * PostgreSQL: natywne operatory inet/cidr; SQLite (testy): UDF z logiką CidrMatcher.
+     */
+    private function sqlIpWCidr(string $kolumna, string $cidr): string
+    {
+        $esc = $this->db->escape($cidr);
+        if ($this->db->getPlatform() === 'Postgre') {
+            // Strażnik regex: cast ::inet na śmieciach kończy się błędem PG; CidrMatcher takie IP odrzucał.
+            return "CASE WHEN {$kolumna} ~ '" . self::REGEX_IPV4 . "' OR {$kolumna} ~ '" . self::REGEX_IPV6 . "'"
+                . " THEN {$kolumna}::inet <<= {$esc}::cidr ELSE FALSE END";
+        }
+        $this->zarejestrujUdfCidr();
+
+        return "mcs_ip_w_cidr({$kolumna}, {$esc})";
+    }
+
+    /**
+     * SQLite (tylko testy jednostkowe) nie zna operatorów inet — rejestrujemy UDF z logiką CidrMatcher.
+     */
+    private function zarejestrujUdfCidr(): void
+    {
+        if ($this->udfCidrZarejestrowany || $this->db->getPlatform() !== 'SQLite3') {
+            return;
+        }
+        $conn = $this->db->connID;
+        if ($conn instanceof \SQLite3) {
+            $matcher = new CidrMatcher();
+            $conn->createFunction(
+                'mcs_ip_w_cidr',
+                static fn ($ip, $cidr): bool => is_string($ip) && is_string($cidr) && $matcher->ipWCidr($ip, $cidr),
+                2,
+            );
+        }
+        $this->udfCidrZarejestrowany = true;
+    }
+
+    /**
+     * Wyrażenie SQL rangi wagi (critical=4 … low=1) — odpowiednik rangaWag() po stronie SQL.
+     */
+    private static function sqlRangaWagi(string $kolumna): string
+    {
+        return "CASE {$kolumna} WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END";
+    }
+
+    private static function wagaZRangi(int $ranga): ?string
+    {
+        $waga = array_search($ranga, self::rangaWag(), true);
+
+        return is_string($waga) ? $waga : null;
     }
 
     /**
