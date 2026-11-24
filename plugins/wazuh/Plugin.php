@@ -160,11 +160,9 @@ class Plugin implements SourcePluginInterface
         $high = max($min, \App\Libraries\OpcjeMcs::int('mcs.wazuh.progHigh'));
 
         try {
-            foreach ($nasze as $m) {
-                $r = $this->zapiszWiersz($db, $importId, $m, $min, $high);
-                $wynik['zmienione'] += $r['zmieniony'] ? 1 : 0;
-                $wynik['incydenty'] += $r['incydent'] ? 1 : 0;
-            }
+            $r = $this->zapiszWiersze($db, $importId, $nasze, $min, $high);
+            $wynik['zmienione'] = $r['zmienione'];
+            $wynik['incydenty'] = $r['incydenty'];
             $this->koperta->zakonczOk($importId, [
                 'zmienione'   => $wynik['zmienione'],
                 'incydenty'   => $wynik['incydenty'],
@@ -179,83 +177,159 @@ class Plugin implements SourcePluginInterface
     }
 
     /**
-     * @param \CodeIgniter\Database\BaseConnection $db
-     * @param array<string, mixed>                 $m
+     * Zbiorczy zapis wierszy Wazuh (issue #442): per paczka (500) jeden SELECT istniejących
+     * (whereIn ip + dzien), INSERT nowych paczką, aktualizacje upsert
+     * ON CONFLICT (ip, kategoria_wazuh, dzien) — tylko gdy liczba wzrosła
+     * (okno eksportu przesuwa się: mniejsza liczba = obcięty początek dnia, nie spadek),
+     * a incydenty jednym zapiszWiele zamiast pętli per wiersz.
      *
-     * @return array{zmieniony: bool, incydent: bool}
+     * @param \CodeIgniter\Database\BaseConnection $db
+     * @param list<array<string, mixed>>           $nasze
+     *
+     * @return array{zmienione: int, incydenty: int}
      */
-    private function zapiszWiersz($db, int $importId, array $m, int $min, int $high): array
+    private function zapiszWiersze($db, int $importId, array $nasze, int $min, int $high): array
     {
-        $tab = $db->table('mcs_wazuh_wiersze');
-        $ist = $tab->where('ip', $m['ip'])->where('kategoria_wazuh', $m['kategoria_wazuh'])->where('dzien', $m['dzien'])
-            ->get()->getRowArray();
+        $zmienione     = 0;
+        $incydenty     = 0;
+        $daneIncydenty = [];
 
-        $dane = [
-            'import_id'        => $importId,
-            'zaobserwowano_at' => $m['ostatnie_at'],
-            'liczba'           => $m['liczba'],
-            'poziom_max'       => $m['poziom_max'],
-            'pierwsze_at'      => $m['pierwsze_at'],
-            'ostatnie_at'      => $m['ostatnie_at'],
-            'hosty_docelowe'   => json_encode($m['hosty_docelowe'], JSON_UNESCAPED_UNICODE),
-            'reguly'           => json_encode($m['reguly'], JSON_UNESCAPED_UNICODE),
-            'payload_json'     => json_encode(['raw' => $m['raw']], JSON_UNESCAPED_UNICODE),
-        ];
-
-        if (is_array($ist)) {
-            // okno eksportu przesuwa się — mniejsza liczba = obcięty początek dnia, nie spadek
-            if ($m['liczba'] <= (int) $ist['liczba']) {
-                return ['zmieniony' => false, 'incydent' => false];
+        foreach (array_chunk($nasze, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI) as $paczka) {
+            // Dedup po kluczu złożonym — wygrywa wiersz z największą liczbą.
+            $poKluczu = [];
+            foreach ($paczka as $m) {
+                $k = $m['ip'] . '|' . $m['kategoria_wazuh'] . '|' . $m['dzien'];
+                if (! isset($poKluczu[$k]) || $m['liczba'] > $poKluczu[$k]['liczba']) {
+                    $poKluczu[$k] = $m;
+                }
             }
-            $db->table('mcs_wazuh_wiersze')->where('id', $ist['id'])->update($dane);
-            $id = (string) $ist['id'];
-        } else {
-            $db->table('mcs_wazuh_wiersze')->insert($dane + [
-                'ip'              => $m['ip'],
-                'dzien'           => $m['dzien'],
-                'kategoria_wazuh' => $m['kategoria_wazuh'],
-                'klucz_dedupu'    => $m['klucz_dedupu'],
-            ]);
-            $id = (string) $db->insertID();
+            $wiersze = array_values($poKluczu);
+
+            // Jeden SELECT na paczkę: istniejące wiersze (klucz złożony ip+kategoria_wazuh+dzien).
+            $istniejace = [];
+            foreach ($db->table('mcs_wazuh_wiersze')
+                ->select('id, ip, kategoria_wazuh, dzien, liczba')
+                ->whereIn('ip', array_values(array_unique(array_column($wiersze, 'ip'))))
+                ->whereIn('dzien', array_values(array_unique(array_column($wiersze, 'dzien'))))
+                ->get()->getResultArray() as $w) {
+                $istniejace[$w['ip'] . '|' . $w['kategoria_wazuh'] . '|' . $w['dzien']] = $w;
+            }
+
+            $doInsertu = [];
+            $doUpdate  = [];
+            foreach ($wiersze as $m) {
+                $k     = $m['ip'] . '|' . $m['kategoria_wazuh'] . '|' . $m['dzien'];
+                $stary = $istniejace[$k] ?? null;
+                if ($stary === null) {
+                    $doInsertu[] = [$m, null];
+                } elseif ($m['liczba'] > (int) $stary['liczba']) {
+                    $doUpdate[] = [$m, (int) $stary['id']];
+                }
+                // liczba <= istniejącej → bez zmian
+            }
+
+            $wierszDane = static fn (array $m): array => [
+                'import_id'        => $importId,
+                'zaobserwowano_at' => $m['ostatnie_at'],
+                'liczba'           => $m['liczba'],
+                'poziom_max'       => $m['poziom_max'],
+                'pierwsze_at'      => $m['pierwsze_at'],
+                'ostatnie_at'      => $m['ostatnie_at'],
+                'hosty_docelowe'   => json_encode($m['hosty_docelowe'], JSON_UNESCAPED_UNICODE),
+                'reguly'           => json_encode($m['reguly'], JSON_UNESCAPED_UNICODE),
+                'payload_json'     => json_encode(['raw' => $m['raw']], JSON_UNESCAPED_UNICODE),
+            ];
+
+            // INSERT nowych wierszy paczką (id w kolejności VALUES)
+            if ($doInsertu !== []) {
+                $wierszeInsert = [];
+                foreach ($doInsertu as [$m]) {
+                    $wierszeInsert[] = $wierszDane($m) + [
+                        'ip'              => $m['ip'],
+                        'dzien'           => $m['dzien'],
+                        'kategoria_wazuh' => $m['kategoria_wazuh'],
+                        'klucz_dedupu'    => $m['klucz_dedupu'],
+                    ];
+                }
+                $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_wazuh_wiersze', $wierszeInsert);
+                foreach ($doInsertu as $j => [$m]) {
+                    $doInsertu[$j][1] = $ids[$j];
+                }
+            }
+            // Aktualizacje upsert ON CONFLICT (klucz złożony) — jedna runda na paczkę
+            if ($doUpdate !== []) {
+                $wierszeUpdate = [];
+                foreach ($doUpdate as [$m]) {
+                    $wierszeUpdate[] = $wierszDane($m) + [
+                        'ip'              => $m['ip'],
+                        'dzien'           => $m['dzien'],
+                        'kategoria_wazuh' => $m['kategoria_wazuh'],
+                        'klucz_dedupu'    => $m['klucz_dedupu'],
+                    ];
+                }
+                \App\Libraries\ZapisBatch::upsert(
+                    $db,
+                    'mcs_wazuh_wiersze',
+                    $wierszeUpdate,
+                    '(ip, kategoria_wazuh, dzien)',
+                    [
+                        'import_id = excluded.import_id',
+                        'zaobserwowano_at = excluded.zaobserwowano_at',
+                        'liczba = excluded.liczba',
+                        'poziom_max = excluded.poziom_max',
+                        'pierwsze_at = excluded.pierwsze_at',
+                        'ostatnie_at = excluded.ostatnie_at',
+                        'hosty_docelowe = excluded.hosty_docelowe',
+                        'reguly = excluded.reguly',
+                        'payload_json = excluded.payload_json',
+                    ],
+                );
+            }
+
+            foreach (array_merge($doInsertu, $doUpdate) as [$m, $id]) {
+                $zmienione++;
+                if ($m['liczba'] < $min) {
+                    continue;
+                }
+                $wagaMeta = $this->waga->wylicz('abuse');
+                if ($m['liczba'] < $high && $wagaMeta['waga'] === 'high') {
+                    $wagaMeta['waga']         = 'medium';
+                    $wagaMeta['uzasadnienie'] .= '; wazuh: liczba ' . $m['liczba'] . ' < progHigh ' . $high . ' → medium';
+                }
+                $incydenty++;
+                $daneIncydenty[] = [
+                    'zrodlo'           => $this->zrodlo(),
+                    'klucz_dedupu'     => $m['klucz_dedupu'],
+                    'podmiot_typ'      => 'ip',
+                    'podmiot'          => $m['ip'],
+                    'zaobserwowano_at' => $m['ostatnie_at'],
+                    'waga'             => $wagaMeta['waga'],
+                    'wersja_wagi'      => $wagaMeta['wersja'],
+                    'kategoria'        => 'abuse',
+                    'tytul'            => $this->parser->tytul($m),
+                    'port'             => null,
+                    'protokol'         => null,
+                    'import_id'        => $importId,
+                    'id_w_zrodle'      => (string) $id,
+                    'payload'          => [
+                        'kategoria_wazuh' => $m['kategoria_wazuh'],
+                        'dzien'           => $m['dzien'],
+                        'liczba'          => $m['liczba'],
+                        'poziom_max'      => $m['poziom_max'],
+                        'hosty_docelowe'  => $m['hosty_docelowe'],
+                        'reguly'          => array_slice($m['reguly'], 0, 10),
+                        'mapa_wersja'     => Parser::MAPA_WERSJA,
+                        'waga_meta'       => $wagaMeta,
+                    ],
+                ];
+            }
         }
 
-        if ($m['liczba'] < $min) {
-            return ['zmieniony' => true, 'incydent' => false];
+        if ($daneIncydenty !== []) {
+            $this->zapis->zapiszWiele($daneIncydenty);
         }
 
-        $wagaMeta = $this->waga->wylicz('abuse');
-        if ($m['liczba'] < $high && $wagaMeta['waga'] === 'high') {
-            $wagaMeta['waga']         = 'medium';
-            $wagaMeta['uzasadnienie'] .= '; wazuh: liczba ' . $m['liczba'] . ' < progHigh ' . $high . ' → medium';
-        }
-
-        $this->zapis->zapisz([
-            'zrodlo'           => $this->zrodlo(),
-            'klucz_dedupu'     => $m['klucz_dedupu'],
-            'podmiot_typ'      => 'ip',
-            'podmiot'          => $m['ip'],
-            'zaobserwowano_at' => $m['ostatnie_at'],
-            'waga'             => $wagaMeta['waga'],
-            'wersja_wagi'      => $wagaMeta['wersja'],
-            'kategoria'        => 'abuse',
-            'tytul'            => $this->parser->tytul($m),
-            'port'             => null,
-            'protokol'         => null,
-            'import_id'        => $importId,
-            'id_w_zrodle'      => $id,
-            'payload'          => [
-                'kategoria_wazuh' => $m['kategoria_wazuh'],
-                'dzien'           => $m['dzien'],
-                'liczba'          => $m['liczba'],
-                'poziom_max'      => $m['poziom_max'],
-                'hosty_docelowe'  => $m['hosty_docelowe'],
-                'reguly'          => array_slice($m['reguly'], 0, 10),
-                'mapa_wersja'     => Parser::MAPA_WERSJA,
-                'waga_meta'       => $wagaMeta,
-            ],
-        ]);
-
-        return ['zmieniony' => true, 'incydent' => true];
+        return ['zmienione' => $zmienione, 'incydenty' => $incydenty];
     }
 
     private function aktualizujHealth(bool $ok, string $msg): void

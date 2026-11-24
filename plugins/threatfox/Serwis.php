@@ -233,119 +233,168 @@ class Serwis
     }
 
     /**
+     * Zapis wyniku przebiegu (issue #443): bez pełnych skanów tabel — diff po kluczu
+     * whereIn('ioc', paczka), upsert INSERT … ON CONFLICT (ioc) DO UPDATE,
+     * trafienia upsert ON CONFLICT (ioc, nasz_prefiks), zdjęcia zbiorczo per chunk,
+     * historia insertBatch; jedna transakcja na paczkę 500 rekordów.
+     *
      * @param list<array<string, mixed>>   $rekordy
-     * @param array<string, array<string, mixed>> $trafienia
+     * @param array<string, array<string, mixed>> $trafienia klucz: ioc|nasz_prefiks
      *
      * @return array{nowe: int, zdjete: int}
      */
     private function zapiszWynik(int $teraz, array $rekordy, array $trafienia, string $sha): array
     {
-        $czas  = self::fmt($teraz);
-        $nowe  = 0;
+        $czas   = self::fmt($teraz);
+        $nowe   = 0;
         $zdjete = 0;
 
-        $this->db->transException(true)->transStart();
+        $widzianeIoc = [];
+        foreach ($rekordy as $r) {
+            $widzianeIoc[(string) $r['ioc']] = true;
+        }
+        // trafienia pogrupowane po ioc (klucz trafienia: ioc|nasz_prefiks)
+        $trafWgIoc = [];
+        foreach ($trafienia as $klucz => $t) {
+            $trafWgIoc[(string) $t['ioc']][$klucz] = $t;
+        }
 
-        try {
-            // --- IOC (wszystkie rekordy jako referencja; UNIQUE ioc) ---
-            $istniejaceIoc = [];
-            foreach ($this->db->table('mcs_threatfox_ioc')->get()->getResultArray() as $w) {
-                $istniejaceIoc[(string) $w['ioc']] = $w;
-            }
-            $widzianeIoc = [];
-            foreach ($rekordy as $r) {
-                $ioc         = (string) $r['ioc'];
-                $widzianeIoc[$ioc] = true;
-                $wiersz      = [
-                    'ioc_type'          => (string) $r['ioc_type'],
-                    'ip'                => $r['ip'] ?? null,
-                    'port'              => $r['port'] ?? null,
-                    'threat_type'       => (string) $r['threat_type'],
-                    'threat_type_desc'  => mb_substr((string) $r['threat_type_desc'], 0, 255),
-                    'malware'           => mb_substr((string) $r['malware'], 0, 255),
-                    'malware_printable' => mb_substr((string) $r['malware_printable'], 0, 255),
-                    'confidence_level'  => $r['confidence_level'] ?? null,
-                    'first_seen'        => (string) $r['first_seen'],
-                    'last_seen'         => (string) $r['last_seen'],
-                    'reporter'          => mb_substr((string) $r['reporter'], 0, 255),
-                    'reference'         => (string) $r['reference'],
-                    'tags'              => mb_substr(implode(',', $r['tags'] ?? []), 0, 255),
-                    'threatfox_id'      => (string) $r['id'],
-                    'aktywne'           => true,
-                    'zdjete_at'         => null,
-                    'ostatni_import_at' => $czas,
-                ];
-                $stary = $istniejaceIoc[$ioc] ?? null;
-                if ($stary === null) {
-                    $this->db->table('mcs_threatfox_ioc')->insert($wiersz + [
-                        'ioc'               => $ioc,
-                        'pierwszy_import_at' => $czas,
-                    ]);
-                } else {
-                    $this->db->table('mcs_threatfox_ioc')->where('id', $stary['id'])->update($wiersz);
+        // --- paczki po 500 rekordów: upsert IOC + upsert trafień + historia, transakcja per paczka ---
+        foreach (array_chunk($rekordy, 500, true) as $paczka) {
+            $histPaczki = [];
+
+            $this->db->transException(true)->transStart();
+            try {
+                // IOC: upsert ON CONFLICT (ioc) — pierwszy_import_at tylko przy nowym wierszu
+                $wierszeIoc = [];
+                foreach ($paczka as $r) {
+                    $wierszeIoc[(string) $r['ioc']] = $this->wierszIoc($r, $czas);
                 }
+                \App\Libraries\ZapisBatch::upsert(
+                    $this->db,
+                    'mcs_threatfox_ioc',
+                    array_values($wierszeIoc),
+                    '(ioc)',
+                    [
+                        'ioc_type = excluded.ioc_type',
+                        'ip = excluded.ip',
+                        'port = excluded.port',
+                        'threat_type = excluded.threat_type',
+                        'threat_type_desc = excluded.threat_type_desc',
+                        'malware = excluded.malware',
+                        'malware_printable = excluded.malware_printable',
+                        'confidence_level = excluded.confidence_level',
+                        'first_seen = excluded.first_seen',
+                        'last_seen = excluded.last_seen',
+                        'reporter = excluded.reporter',
+                        'reference = excluded.reference',
+                        'tags = excluded.tags',
+                        'threatfox_id = excluded.threatfox_id',
+                        'aktywne = excluded.aktywne',
+                        'zdjete_at = excluded.zdjete_at',
+                        'ostatni_import_at = excluded.ostatni_import_at',
+                    ],
+                );
+
+                // trafienia tej paczki: diff po kluczu whereIn('ioc', …) zamiast pełnego ->get()
+                $trafPaczki = [];
+                foreach ($paczka as $r) {
+                    foreach ($trafWgIoc[(string) $r['ioc']] ?? [] as $klucz => $t) {
+                        $trafPaczki[$klucz] = $t;
+                    }
+                }
+                if ($trafPaczki !== []) {
+                    $istniejace = [];
+                    foreach ($this->db->table('mcs_threatfox_trafienia')
+                        ->whereIn('ioc', array_values(array_unique(array_column($trafPaczki, 'ioc'))))
+                        ->get()->getResultArray() as $w) {
+                        $istniejace[(string) $w['ioc'] . '|' . (string) $w['nasz_prefiks']] = $w;
+                    }
+
+                    $wierszeTraf = [];
+                    foreach ($trafPaczki as $klucz => $t) {
+                        $stary = $istniejace[$klucz] ?? null;
+                        if ($stary === null) {
+                            $nowe++;
+                            $histPaczki[] = $this->wierszHistoria($teraz, 'nowe', (string) $t['ioc'], (string) $t['nasz_prefiks'], $this->opisTrafienia((string) $t['ioc'], (string) ($t['threat_type_desc'] ?? ''), (string) ($t['threat_type'] ?? ''), (string) $t['nasz_prefiks']));
+                        } elseif (! \App\Models\PluginModel::jakoBool($stary['aktywne'])) {
+                            $nowe++;
+                            $histPaczki[] = $this->wierszHistoria($teraz, 'nowe', (string) $t['ioc'], (string) $t['nasz_prefiks'], 'ponownie: ' . $this->opisTrafienia((string) $t['ioc'], (string) ($t['threat_type_desc'] ?? ''), (string) ($t['threat_type'] ?? ''), (string) $t['nasz_prefiks']));
+                        }
+                        $wierszeTraf[] = $this->wierszTrafienia($t, $czas);
+                    }
+                    \App\Libraries\ZapisBatch::upsert(
+                        $this->db,
+                        'mcs_threatfox_trafienia',
+                        $wierszeTraf,
+                        '(ioc, nasz_prefiks)',
+                        [
+                            'ip = excluded.ip',
+                            'port = excluded.port',
+                            'threat_type = excluded.threat_type',
+                            'kategoria = excluded.kategoria',
+                            'aktywne = excluded.aktywne',
+                            'ostatnie_at = excluded.ostatnie_at',
+                            'zdjete_at = excluded.zdjete_at',
+                            'payload_json = excluded.payload_json',
+                        ],
+                    );
+                }
+
+                if ($histPaczki !== []) {
+                    foreach (array_chunk($histPaczki, 500) as $h) {
+                        $this->db->table('mcs_threatfox_historia')->insertBatch($h);
+                    }
+                }
+
+                $this->db->transComplete();
+                if ($this->db->transStatus() === false) {
+                    throw new RuntimeException('Transakcja zapisu wyniku ThreatFox nieudana (paczka IOC/trafień)');
+                }
+            } catch (\Throwable $e) {
+                if ($this->db->transStatus() !== false) {
+                    $this->db->transRollback();
+                }
+                $this->db->resetTransStatus();
+                throw $e;
             }
-            $iocZdjete = 0;
-            foreach ($istniejaceIoc as $ioc => $stary) {
-                if (isset($widzianeIoc[$ioc]) || ! \App\Models\PluginModel::jakoBool($stary['aktywne'])) {
+        }
+
+        // --- zdjęcia zbiorczo (tylko aktywne, diff w PHP) + historia „pobrano” + stan: jedna transakcja ---
+        $histZdjete = [];
+        $this->db->transException(true)->transStart();
+        try {
+            // IOC zdjęte: aktywne i nieobecne w tej odpowiedzi
+            $iocZdjete  = 0;
+            $doZdjecia  = [];
+            foreach ($this->db->table('mcs_threatfox_ioc')->select('id, ioc')->where('aktywne', true)->get()->getResultArray() as $w) {
+                if (isset($widzianeIoc[(string) $w['ioc']])) {
                     continue;
                 }
-                $this->db->table('mcs_threatfox_ioc')->where('id', $stary['id'])->update([
-                    'aktywne'   => false,
-                    'zdjete_at' => $czas,
-                ]);
+                $doZdjecia[] = (int) $w['id'];
                 $iocZdjete++;
             }
-
-            // --- trafienia (UNIQUE ioc + nasz_prefiks) ---
-            $istniejace = [];
-            foreach ($this->db->table('mcs_threatfox_trafienia')->get()->getResultArray() as $w) {
-                $istniejace[(string) $w['ioc'] . '|' . (string) $w['nasz_prefiks']] = $w;
+            foreach (array_chunk($doZdjecia, 500) as $pac) {
+                $this->db->table('mcs_threatfox_ioc')->whereIn('id', $pac)->update(['aktywne' => false, 'zdjete_at' => $czas]);
             }
 
-            foreach ($trafienia as $klucz => $t) {
-                $payload = json_encode($t, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                $stary   = $istniejace[$klucz] ?? null;
-                $wiersz  = [
-                    'ioc'          => (string) $t['ioc'],
-                    'nasz_prefiks' => (string) $t['nasz_prefiks'],
-                    'ip'           => (string) $t['ip'],
-                    'port'         => $t['port'] ?? null,
-                    'threat_type'  => (string) $t['threat_type'],
-                    'kategoria'    => self::kategoriaDla((string) $t['threat_type']),
-                    'aktywne'      => true,
-                    'ostatnie_at'  => $czas,
-                    'zdjete_at'    => null,
-                    'payload_json' => $payload,
-                ];
-                if ($stary === null) {
-                    $this->db->table('mcs_threatfox_trafienia')->insert($wiersz + ['pierwsze_at' => $czas]);
-                    $nowe++;
-                    $this->historia($teraz, 'nowe', (string) $t['ioc'], (string) $t['nasz_prefiks'], $this->opisTrafienia((string) $t['ioc'], (string) ($t['threat_type_desc'] ?? ''), (string) ($t['threat_type'] ?? ''), (string) $t['nasz_prefiks']));
+            // trafienia zdjęte: aktywne i nieobecne w tej odpowiedzi
+            $doZdjecia = [];
+            foreach ($this->db->table('mcs_threatfox_trafienia')->select('id, ioc, nasz_prefiks')->where('aktywne', true)->get()->getResultArray() as $w) {
+                $klucz = (string) $w['ioc'] . '|' . (string) $w['nasz_prefiks'];
+                if (isset($trafienia[$klucz])) {
                     continue;
                 }
-                $bylAktywny = \App\Models\PluginModel::jakoBool($stary['aktywne']);
-                $this->db->table('mcs_threatfox_trafienia')->where('id', $stary['id'])->update($wiersz);
-                if (! $bylAktywny) {
-                    $nowe++;
-                    $this->historia($teraz, 'nowe', (string) $t['ioc'], (string) $t['nasz_prefiks'], 'ponownie: ' . $this->opisTrafienia((string) $t['ioc'], (string) ($t['threat_type_desc'] ?? ''), (string) ($t['threat_type'] ?? ''), (string) $t['nasz_prefiks']));
-                }
-            }
-
-            foreach ($istniejace as $klucz => $stary) {
-                if (isset($trafienia[$klucz]) || ! \App\Models\PluginModel::jakoBool($stary['aktywne'])) {
-                    continue;
-                }
-                $this->db->table('mcs_threatfox_trafienia')->where('id', $stary['id'])->update([
-                    'aktywne'   => false,
-                    'zdjete_at' => $czas,
-                ]);
+                $doZdjecia[] = (int) $w['id'];
                 $zdjete++;
-                $this->historia($teraz, 'zdjete', (string) $stary['ioc'], (string) $stary['nasz_prefiks'], 'IOC zniknął z odpowiedzi ThreatFox');
+                $histZdjete[] = $this->wierszHistoria($teraz, 'zdjete', (string) $w['ioc'], (string) $w['nasz_prefiks'], 'IOC zniknął z odpowiedzi ThreatFox');
+            }
+            foreach (array_chunk($doZdjecia, 500) as $pac) {
+                $this->db->table('mcs_threatfox_trafienia')->whereIn('id', $pac)->update(['aktywne' => false, 'zdjete_at' => $czas]);
             }
 
-            $zIp = count(array_filter($rekordy, static fn (array $r): bool => is_string($r['ip'] ?? null) && $r['ip'] !== ''));
-            $this->historia($teraz, 'pobrano', null, null, sprintf(
+            $zIp          = count(array_filter($rekordy, static fn (array $r): bool => is_string($r['ip'] ?? null) && $r['ip'] !== ''));
+            $histZdjete[] = $this->wierszHistoria($teraz, 'pobrano', null, null, sprintf(
                 'pobrano OK: ioc=%d (z ip=%d), trafienia=%d, nowe=%d, zdjęte=%d, ioc zdjęte=%d, sha256=%s',
                 count($rekordy),
                 $zIp,
@@ -355,6 +404,9 @@ class Serwis
                 $iocZdjete,
                 substr($sha, 0, 16),
             ));
+            foreach (array_chunk($histZdjete, 500) as $h) {
+                $this->db->table('mcs_threatfox_historia')->insertBatch($h);
+            }
 
             $this->zapiszStan([
                 'ostatnie_ok_at'    => $czas,
@@ -367,8 +419,14 @@ class Serwis
             ]);
 
             $this->db->transComplete();
+            if ($this->db->transStatus() === false) {
+                throw new RuntimeException('Transakcja zapisu wyniku ThreatFox nieudana (zdjęcia/stan)');
+            }
         } catch (\Throwable $e) {
-            $this->db->transRollback();
+            if ($this->db->transStatus() !== false) {
+                $this->db->transRollback();
+            }
+            $this->db->resetTransStatus();
             throw $e;
         }
 
@@ -376,14 +434,88 @@ class Serwis
     }
 
     /**
+     * Wiersz mcs_threatfox_ioc dla upsert (pierwszy_import_at tylko przy insercie).
+     *
+     * @param array<string, mixed> $r
+     *
+     * @return array<string, mixed>
+     */
+    private function wierszIoc(array $r, string $czas): array
+    {
+        return [
+            'ioc'                => (string) $r['ioc'],
+            'ioc_type'           => (string) $r['ioc_type'],
+            'ip'                 => $r['ip'] ?? null,
+            'port'               => $r['port'] ?? null,
+            'threat_type'        => (string) $r['threat_type'],
+            'threat_type_desc'   => mb_substr((string) $r['threat_type_desc'], 0, 255),
+            'malware'            => mb_substr((string) $r['malware'], 0, 255),
+            'malware_printable'  => mb_substr((string) $r['malware_printable'], 0, 255),
+            'confidence_level'   => $r['confidence_level'] ?? null,
+            'first_seen'         => (string) $r['first_seen'],
+            'last_seen'          => (string) $r['last_seen'],
+            'reporter'           => mb_substr((string) $r['reporter'], 0, 255),
+            'reference'          => (string) $r['reference'],
+            'tags'               => mb_substr(implode(',', $r['tags'] ?? []), 0, 255),
+            'threatfox_id'       => (string) $r['id'],
+            'aktywne'            => true,
+            'zdjete_at'          => null,
+            'pierwszy_import_at' => $czas,
+            'ostatni_import_at'  => $czas,
+        ];
+    }
+
+    /**
+     * Wiersz mcs_threatfox_trafienia dla upsert (pierwsze_at tylko przy insercie).
+     *
+     * @param array<string, mixed> $t
+     *
+     * @return array<string, mixed>
+     */
+    private function wierszTrafienia(array $t, string $czas): array
+    {
+        return [
+            'ioc'          => (string) $t['ioc'],
+            'nasz_prefiks' => (string) $t['nasz_prefiks'],
+            'ip'           => (string) $t['ip'],
+            'port'         => $t['port'] ?? null,
+            'threat_type'  => (string) $t['threat_type'],
+            'kategoria'    => self::kategoriaDla((string) $t['threat_type']),
+            'aktywne'      => true,
+            'pierwsze_at'  => $czas,
+            'ostatnie_at'  => $czas,
+            'zdjete_at'    => null,
+            'payload_json' => json_encode($t, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ];
+    }
+
+    /**
+     * Wiersz mcs_threatfox_historia (do insertBatch).
+     *
+     * @return array<string, mixed>
+     */
+    private function wierszHistoria(int $teraz, string $zdarzenie, ?string $ioc, ?string $prefiks, string $opis): array
+    {
+        return [
+            'at'           => self::fmt($teraz),
+            'zdarzenie'    => $zdarzenie,
+            'ioc'          => $ioc,
+            'nasz_prefiks' => $prefiks,
+            'opis'         => mb_substr($opis, 0, 2000),
+        ];
+    }
+
+    /**
      * Incydent na każde aktywne trafienie (dedup: zrodlo + klucz_dedupu w IncydentZapis).
+     * Zbiorczo (issue #442): jedno zapiszWiele + jeden UPDATE z CASE per paczka na trafienia.incydent_id.
      *
      * @return int liczba zapisanych incydentów
      */
     private function zapiszIncydenty(int $teraz, ?int $importId): int
     {
-        $n       = 0;
         $aktywne = $this->db->table('mcs_threatfox_trafienia')->where('aktywne', true)->get()->getResultArray();
+
+        $dane = [];
         foreach ($aktywne as $t) {
             $rek  = is_string($t['payload_json'] ?? null) ? (json_decode($t['payload_json'], true) ?: []) : [];
             $kat  = self::kategoriaDla((string) $t['threat_type']);
@@ -394,8 +526,9 @@ class Serwis
             if ($etykieta !== null) {
                 $sygnaly['severity'] = $etykieta;
             }
-            $waga  = $this->waga->wylicz($kat, $sygnaly);
-            $wynik = $this->zapis->zapisz([
+            $waga = $this->waga->wylicz($kat, $sygnaly);
+
+            $dane[] = [
                 'zrodlo'           => self::ZRODLO,
                 'klucz_dedupu'     => 'threatfox|' . $t['ioc'] . '|' . $t['nasz_prefiks'],
                 'podmiot_typ'      => 'ip',
@@ -428,12 +561,21 @@ class Serwis
                     'kategoria'         => $kat,
                     'waga_meta'         => $waga,
                 ],
-            ]);
-            $this->db->table('mcs_threatfox_trafienia')->where('id', $t['id'])->update(['incydent_id' => $wynik['incydent_id']]);
-            $n++;
+            ];
         }
 
-        return $n;
+        $wyniki = $this->zapis->zapiszWiele($dane);
+
+        // trafienia.incydent_id — zbiorczo, jeden UPDATE z CASE na paczkę
+        $mapa = [];
+        foreach ($aktywne as $i => $t) {
+            $mapa[(int) $t['id']] = $wyniki[$i]['incydent_id'];
+        }
+        foreach (array_chunk($mapa, 500, true) as $paczka) {
+            \App\Libraries\ZapisBatch::updateCaseWhereIn($this->db, 'mcs_threatfox_trafienia', 'incydent_id', 'id', $paczka);
+        }
+
+        return count($aktywne);
     }
 
     private function opisTrafienia(string $ioc, string $threatTypeDesc, string $threatType, string $naszPrefiks): string

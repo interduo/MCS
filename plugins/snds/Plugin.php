@@ -335,7 +335,10 @@ class Plugin implements SourcePluginInterface
                 return 0;
             }
 
-            $licznik = 0;
+            // Zbiorczy zapis (issue #442): wiersze źródła paczkami (INSERT … RETURNING id),
+            // potem incydenty jednym zapiszWiele.
+            $wierszeDb = [];
+            $incydenty = [];
             foreach ($wiersze as $w) {
                 $kategoria = $this->parser->kategoriaDlaWiersza($w);
                 $sygnaly   = [];
@@ -345,22 +348,21 @@ class Plugin implements SourcePluginInterface
                 $wynikWagi = $this->waga->wylicz($kategoria, $sygnaly);
                 $czas      = $this->normalizujCzas($w['timestamp']);
 
-                $db->table('mcs_snds_wiersze')->insert([
+                $wierszeDb[] = [
                     'import_id'        => $importId,
                     'zaobserwowano_at' => $czas,
                     'ip'               => $w['ip'],
                     'filtr'            => $w['filtr'],
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'payload_json'     => json_encode($w['raw'], JSON_UNESCAPED_UNICODE),
-                ]);
-                $idWZrodle = (string) $db->insertID();
+                ];
 
                 $tytul = 'SNDS';
                 if (! empty($w['filtr'])) {
                     $tytul .= ' — filtr ' . $w['filtr'];
                 }
 
-                $this->zapis->zapisz([
+                $incydenty[] = [
                     'zrodlo'           => $this->zrodlo(),
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'podmiot_typ'      => 'ip',
@@ -371,16 +373,24 @@ class Plugin implements SourcePluginInterface
                     'kategoria'        => $kategoria,
                     'tytul'            => $tytul,
                     'import_id'        => $importId,
-                    'id_w_zrodle'      => $idWZrodle,
+                    'id_w_zrodle'      => null, // uzupełnione niżej po zbiorczym INSERT wierszy źródła
                     'payload'          => [
                         'filtr'          => $w['filtr'],
                         'complaint_rate' => $w['complaint_rate'],
                         'trap_hits'      => $w['trap_hits'],
                         'waga_meta'      => $wynikWagi,
                     ],
-                ]);
-                $licznik++;
+                ];
             }
+
+            foreach (array_chunk($wierszeDb, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI, true) as $paczka) {
+                $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_snds_wiersze', array_values($paczka));
+                foreach (array_keys($paczka) as $j => $i) {
+                    $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+                }
+            }
+            $this->zapis->zapiszWiele($incydenty);
+            $licznik = count($wiersze);
 
             $this->koperta->zakonczOk($importId, ['wierszy' => $licznik]);
 

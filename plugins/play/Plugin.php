@@ -236,28 +236,30 @@ class Plugin implements SourcePluginInterface
                 return 0;
             }
 
-            $licznik = 0;
+            // Zbiorczy zapis (issue #442): wiersze źródła paczkami (INSERT … RETURNING id),
+            // potem incydenty jednym zapiszWiele.
+            $wierszeDb = [];
+            $incydenty = [];
             foreach ($wiersze as $w) {
                 $kategoria = $this->parser->kategoriaDlaWiersza($w);
                 $wynikWagi = $this->waga->wylicz($kategoria, [
                     'message_type' => $w['message_type'],
                 ]);
 
-                $db->table('mcs_play_wiersze')->insert([
+                $wierszeDb[] = [
                     'import_id'        => $importId,
                     'zaobserwowano_at' => $w['timestamp'],
                     'ip'               => $w['ip'],
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'payload_json'     => json_encode($w, JSON_UNESCAPED_UNICODE),
-                ]);
-                $idWZrodle = (string) $db->insertID();
+                ];
 
                 $tytul = 'Play Scrubbing DDoS — ' . $w['message_type'];
                 if (! empty($w['event_id'])) {
                     $tytul .= ' #' . $w['event_id'];
                 }
 
-                $this->zapis->zapisz([
+                $incydenty[] = [
                     'zrodlo'           => $this->zrodlo(),
                     'klucz_dedupu'     => $w['klucz_dedupu'],
                     'podmiot_typ'      => $w['podmiot_typ'],
@@ -268,7 +270,7 @@ class Plugin implements SourcePluginInterface
                     'kategoria'        => $kategoria,
                     'tytul'            => $tytul,
                     'import_id'        => $importId,
-                    'id_w_zrodle'      => $idWZrodle,
+                    'id_w_zrodle'      => null, // uzupełnione niżej po zbiorczym INSERT wierszy źródła
                     'payload'          => [
                         'message_type'  => $w['message_type'],
                         'event_id'      => $w['event_id'],
@@ -278,9 +280,17 @@ class Plugin implements SourcePluginInterface
                         'cidr'          => $w['cidr'],
                         'waga_meta'     => $wynikWagi,
                     ],
-                ]);
-                $licznik++;
+                ];
             }
+
+            foreach (array_chunk($wierszeDb, \App\Libraries\IncydentZapis::ROZMIAR_PACZKI, true) as $paczka) {
+                $ids = \App\Libraries\ZapisBatch::insertZwrocId($db, 'mcs_play_wiersze', array_values($paczka));
+                foreach (array_keys($paczka) as $j => $i) {
+                    $incydenty[$i]['id_w_zrodle'] = (string) $ids[$j];
+                }
+            }
+            $this->zapis->zapiszWiele($incydenty);
+            $licznik = count($wiersze);
 
             $this->koperta->zakonczOk($importId, ['wierszy' => $licznik]);
 
