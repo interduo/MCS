@@ -57,6 +57,10 @@ final class OpcjeMcs
         $d['mcs.revDns.cacheTtl'] = [
             'grupa' => 'Sieć / AS', 'etykieta' => 'Reverse DNS — cache TTL (s)', 'typ' => 'int', 'domyslna' => '3600', 'min' => 60, 'max' => 7 * self::DOBA,
         ];
+        $d['mcs.revDns.timeoutMs'] = [
+            'grupa' => 'Sieć / AS', 'etykieta' => 'Reverse DNS — twardy timeout zapytania PTR (ms)', 'typ' => 'int', 'domyslna' => '300', 'min' => 50, 'max' => 5000,
+            'opis' => 'Lookup PTR na stronie /ip/{ip} przy zimnym cache nie może blokować requestu dłużej (issue #447). Resolver tylko w .env: mcs.revDns.resolver.',
+        ];
 
         // --- Przegląd / kolejka / badge ---
         $d['mcs.kolejkaDnia.oknoDni'] = [
@@ -81,6 +85,10 @@ final class OpcjeMcs
         ];
         $d['mcs.badge.maxIpsBatch'] = [
             'grupa' => 'Przegląd i badge', 'etykieta' => 'API badge — max IP w jednym żądaniu', 'typ' => 'int', 'domyslna' => '100', 'min' => 1, 'max' => 1000,
+        ];
+        $d['mcs.api.rateLimit'] = [
+            'grupa' => 'Przegląd i badge', 'etykieta' => 'API tokenowe (/api/badge, /api/enrichment/*) — rate limit (żądań/min per token i per IP)', 'typ' => 'int', 'domyslna' => '60', 'min' => 1, 'max' => 10000,
+            'opis' => 'Filtr mcsApiThrottle (po mcsBadgeToken): 429 + Retry-After po wyczerpaniu kubełka (issue #451).',
         ];
 
         // --- Speedtest (dashboard + portal) ---

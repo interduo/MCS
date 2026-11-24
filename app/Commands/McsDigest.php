@@ -69,6 +69,32 @@ class McsDigest extends BaseCommand
             CLI::write('[digest] brak alertów high|critical w oknie', 'green');
         }
 
+        $this->podgrzejCacheRevDns();
+
         return EXIT_SUCCESS;
+    }
+
+    /**
+     * Pre-warm cache PTR dla IP z watchlisty (issue #447) — poza requestem HTTP,
+     * więc strona /ip/{ip} i dashboard czytają potem tylko cache (mapaZCache / cache hit).
+     * Każdy zimny wpis kosztuje maks. twardy timeout mcs.revDns.timeoutMs.
+     */
+    private function podgrzejCacheRevDns(): void
+    {
+        try {
+            $rev = new \App\Libraries\Siec\RevDns();
+            if (! $rev->jestWlaczone()) {
+                return;
+            }
+            $lista = model(\App\Models\WatchlistaModel::class)->listaIp();
+            foreach ($lista as $ip) {
+                $rev->dlaIp((string) $ip);
+            }
+            if ($lista !== []) {
+                CLI::write('[digest] revDNS: podgrzano cache dla ' . count($lista) . ' IP z watchlisty', 'green');
+            }
+        } catch (\Throwable $e) {
+            CLI::write('[digest] revDNS: pre-warm pominięty (' . $e->getMessage() . ')', 'yellow');
+        }
     }
 }

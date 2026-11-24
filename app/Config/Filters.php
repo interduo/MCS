@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Filters\McsApiThrottleFilter;
 use App\Filters\McsAuthFilter;
 use App\Filters\McsBadgeTokenFilter;
 use App\Filters\McsRolaFilter;
@@ -41,6 +42,7 @@ class Filters extends BaseFilters
         'mcsAuth'        => McsAuthFilter::class,
         'mcsRola'        => McsRolaFilter::class,
         'mcsBadgeToken'  => McsBadgeTokenFilter::class,
+        'mcsApiThrottle' => McsApiThrottleFilter::class,
     ];
 
     /**
@@ -134,6 +136,14 @@ class Filters extends BaseFilters
             'before' => [
                 'api/badge',
                 'api/health',
+                'api/enrichment/*',
+            ],
+        ],
+        // Rate limit (429 + Retry-After, issue #451) — grupa PO mcsBadgeToken,
+        // żeby kubełki liczyły tylko żądania z poprawnym tokenem.
+        'mcsApiThrottle' => [
+            'before' => [
+                'api/badge',
                 'api/enrichment/*',
             ],
         ],

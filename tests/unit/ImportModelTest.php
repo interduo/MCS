@@ -131,4 +131,31 @@ final class ImportModelTest extends CIUnitTestCase
 
         $this->assertSame(['play', 'shadowserver', 'snds'], $lista);
     }
+
+    /**
+     * Issue #452: granica doby filtra „do dnia” liczona w UTC (sesja PG: '-c timezone=UTC').
+     * Dane o 2026-01-02 23:30 CET (= 2026-01-02 22:30 UTC) przy do=2026-01-02 MUSZĄ być w wyniku.
+     */
+    public function testSzukajGranicaDobyLiczonaWUtc(): void
+    {
+        $model = model(ImportModel::class);
+        // 2026-01-02 23:30 CET = 2026-01-02 22:30 UTC — koniec doby warszawskiej, w UTC jeszcze 2026-01-02.
+        $model->insert(['zrodlo' => 'play', 'rozpoczeto_at' => '2026-01-02 22:30:00+00', 'status' => 'ok']);
+        // 2026-01-02 23:30 UTC = 2026-01-03 00:30 CET — w czasie warszawskim już 3 stycznia,
+        // ale doba UTC 2026-01-02 kończy się o 2026-01-03 00:00 UTC, więc wiersz też należy do do=2026-01-02.
+        $model->insert(['zrodlo' => 'play', 'rozpoczeto_at' => '2026-01-02 23:30:00+00', 'status' => 'ok']);
+        // 2026-01-03 00:30 UTC — już poza dobą UTC 2026-01-02.
+        $model->insert(['zrodlo' => 'play', 'rozpoczeto_at' => '2026-01-03 00:30:00+00', 'status' => 'ok']);
+
+        $lista = $model->szukaj(null, null, null, null, '2026-01-02', 25);
+        $daty  = array_column($lista, 'rozpoczeto_at');
+        sort($daty);
+
+        $this->assertSame(['2026-01-02 22:30:00+00', '2026-01-02 23:30:00+00'], $daty);
+
+        // od=2026-01-03, do=2026-01-03 → tylko wiersz z 2026-01-03 00:30 UTC (północ UTC jako granica od).
+        $lista = $model->szukaj(null, null, null, '2026-01-03', '2026-01-03', 25);
+        $this->assertCount(1, $lista);
+        $this->assertSame('2026-01-03 00:30:00+00', (string) $lista[0]['rozpoczeto_at']);
+    }
 }
