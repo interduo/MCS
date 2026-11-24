@@ -244,6 +244,38 @@ final class SpeedtestDbBottlenecksTest extends CIUnitTestCase
         $this->assertSame(2, $anom['cidr_peaki'][0]['liczba_powyzej']);
     }
 
+    /**
+     * Issue #468: na Postgre agregatyDzienneSql nie może porównywać date do ''
+     * (ERROR: invalid input syntax for type date). Test z mockiem połączenia PG.
+     */
+    public function testAgregatyDzienneNaPostgreBezPorownaniaDateDoPustegoStringa(): void
+    {
+        $model = new EnrichmentSpeedtestModel();
+
+        $uchwycone = [];
+        $wynik = $this->createMock(\CodeIgniter\Database\BaseResult::class);
+        $wynik->method('getResultArray')->willReturn([]);
+        $db = $this->createMock(\CodeIgniter\Database\BaseConnection::class);
+        $db->method('getPlatform')->willReturn('Postgre');
+        $db->method('prefixTable')->willReturnCallback(static fn (string $t): string => 'mcs_' . $t);
+        $db->method('escape')->willReturnCallback(static fn ($v): string => "'" . $v . "'");
+        $db->method('query')->willReturnCallback(static function (string $sql) use (&$uchwycone, $wynik) {
+            $uchwycone[] = $sql;
+
+            return $wynik;
+        });
+
+        $ref = new \ReflectionProperty($model, 'db');
+        $ref->setAccessible(true);
+        $ref->setValue($model, $db);
+
+        $model->agregatyDzienneSql('2026-11-17 00:00:00', null, '');
+
+        $this->assertNotEmpty($uchwycone);
+        $this->assertStringContainsString('dzien IS NOT NULL', $uchwycone[0]);
+        $this->assertStringNotContainsString("dzien <> ''", $uchwycone[0], 'date <> \'\' rzuca błąd na Postgre');
+    }
+
     private function serwis(): SpeedtestSerwis
     {
         return new SpeedtestSerwis(
