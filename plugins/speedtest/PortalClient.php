@@ -306,6 +306,8 @@ class PortalClient
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
+            // Redirecty tylko po https (egress https wymuszony także po redirectach).
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_MAXREDIRS      => 3,
             CURLOPT_SSL_VERIFYPEER => $this->tlsVerifyPeer,
             CURLOPT_SSL_VERIFYHOST => $this->tlsVerifyPeer ? 2 : 0,

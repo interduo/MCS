@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Enrichment;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * Klient isMalicious API — GET /check (enrichment, nie stream).
  *
@@ -44,7 +46,8 @@ class IsmaliciousClient
         $key        = trim((string) env('mcs.ismalicious.apiKey', ''));
         $secret     = trim((string) env('mcs.ismalicious.apiSecret', ''));
         $credential = trim((string) env('mcs.ismalicious.apiCredential', ''));
-        $base       = trim((string) env('mcs.ismalicious.baseUrl', 'https://api.ismalicious.com'));
+        // SSRF: baseUrl z .env tylko https na publicznym hoście (inaczej odrzucony + warning w logu).
+        $base       = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.ismalicious.baseUrl', 'https://api.ismalicious.com'), 'mcs.ismalicious.baseUrl');
         $enrichment = trim((string) env('mcs.ismalicious.enrichment', 'standard'));
 
         return new self(
@@ -185,6 +188,20 @@ class IsmaliciousClient
         $headerLines = [];
         foreach ($headers as $k => $v) {
             $headerLines[] = $k . ': ' . $v;
+        }
+
+        // SSRF: przed realnym wyjściem curl — https + publiczne IP po resolpcie DNS.
+        $blad = BezpiecznyUrl::waliduj($url);
+        if ($blad !== null) {
+            log_message('warning', 'MCS isMalicious egress odrzucony (' . $blad . ') host=' . BezpiecznyUrl::host($url));
+
+            return [
+                'ok'        => false,
+                'http_code' => 0,
+                'data'      => null,
+                'error'     => 'Odrzucono adres egress (https + publiczny IP): ' . $blad,
+                'raw_body'  => '',
+            ];
         }
 
         $ch = curl_init($url);

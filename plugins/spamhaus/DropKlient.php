@@ -88,6 +88,8 @@ class DropKlient
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
+            // Redirecty tylko po https (egress https wymuszony także po redirectach).
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_MAXREDIRS      => 3,
             CURLOPT_CONNECTTIMEOUT => min(15, $this->timeout),
             CURLOPT_TIMEOUT        => $this->timeout,

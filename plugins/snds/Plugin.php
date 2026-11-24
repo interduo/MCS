@@ -7,6 +7,7 @@ use App\Libraries\ImportLimity;
 use App\Libraries\IncydentZapis;
 use App\Libraries\PluginOpisPolaczenia;
 use App\Libraries\PrzekroczonyLimitImportu;
+use App\Libraries\Siec\BezpiecznyUrl;
 use App\Libraries\SourcePluginInterface;
 use App\Libraries\WagaV1;
 use App\Models\PluginModel;
@@ -491,9 +492,17 @@ class Plugin implements SourcePluginInterface
             ];
         }
 
+        // SSRF: przed realnym wyjściem HTTP — https + publiczne IP po resolpcie DNS (mcs.snds.dataUrlTemplate).
+        $blad = BezpiecznyUrl::waliduj($url);
+        if ($blad !== null) {
+            log_message('warning', 'MCS SNDS egress odrzucony (' . $blad . ') host=' . BezpiecznyUrl::host($url));
+            throw new RuntimeException('SNDS: odrzucono adres egress (https + publiczny IP): ' . $blad);
+        }
+
         $client   = Services::curlrequest();
         $response = $client->get($url, [
             'http_errors'     => false,
+            'allow_redirects' => false,
             'timeout'         => max(1, \App\Libraries\OpcjeMcs::int('mcs.snds.httpTimeout')),
             'connect_timeout' => max(1, \App\Libraries\OpcjeMcs::int('mcs.snds.httpConnectTimeout')),
             'headers'         => [

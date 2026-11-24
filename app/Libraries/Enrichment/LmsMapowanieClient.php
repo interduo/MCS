@@ -2,9 +2,15 @@
 
 namespace App\Libraries\Enrichment;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * Klient HTTP do API mapowania LMS (MCS→LMS).
  * Auth: Bearer mapToken (ten sam w [mcs] map_token w lms.ini).
+ *
+ * SSRF: baseUrl/apiPath walidowane przy starcie (fromEnv, tylko https + publiczny host),
+ * a przed każdym realnym żądaniem curl — pełna walidacja z resolve DNS (BezpiecznyUrl::waliduj).
+ * Redirecty nie są śledzone (CURLOPT_FOLLOWLOCATION=false), więc cel egressu jest zawsze walidowany.
  */
 class LmsMapowanieClient
 {
@@ -29,6 +35,16 @@ class LmsMapowanieClient
         $path = trim((string) env('mcs.lms.apiPath', 'plugins/LMSMcsMapowaniePlugin/api.php'));
         $ttl  = \App\Libraries\OpcjeMcs::int('mcs.lms.httpTimeout');
         $tls  = filter_var(env('mcs.lms.tlsVerifyPeer', true), FILTER_VALIDATE_BOOLEAN);
+
+        // SSRF: pełny URL z apiPath też musi być https na publicznym hoście.
+        if (preg_match('#^https?://#i', $path) === 1) {
+            $blad = BezpiecznyUrl::walidujSchemat($path);
+            if ($blad !== null) {
+                log_message('warning', 'MCS egress odrzucony dla mcs.lms.apiPath (' . $blad . ') host=' . BezpiecznyUrl::host($path));
+                $base = '';
+            }
+        }
+        $base = BezpiecznyUrl::baseUrlZEnv($base, 'mcs.lms.baseUrl');
 
         return new self(
             $base,
@@ -232,6 +248,21 @@ class LmsMapowanieClient
             return ($this->httpFn)($method, $url, $headers);
         }
 
+        // SSRF: przed realnym wyjściem curl — https + publiczne IP po resolpcie DNS.
+        // (z wstrzykniętym $httpFn, np. w testach, walidacja leży po stronie testu)
+        $blad = BezpiecznyUrl::waliduj($url);
+        if ($blad !== null) {
+            log_message('warning', 'MCS LMS egress odrzucony (' . $blad . ') host=' . BezpiecznyUrl::host($url));
+
+            return [
+                'ok'        => false,
+                'http_code' => 0,
+                'data'      => null,
+                'error'     => 'Odrzucono adres egress (https + publiczny IP): ' . $blad,
+                'raw_body'  => '',
+            ];
+        }
+
         $ch = curl_init($url);
         if ($ch === false) {
             return [
@@ -246,6 +277,8 @@ class LmsMapowanieClient
         curl_setopt_array($ch, [
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_RETURNTRANSFER => true,
+            // Bez śledzenia redirectów: każdy kolejny cel musiałby przejść walidację egress.
+            CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_TIMEOUT        => $this->timeout,
             CURLOPT_HTTPHEADER     => $headers,

@@ -68,6 +68,8 @@ class UzytkownicySerwis
             return $this->blad('Nie udało się utworzyć użytkownika.');
         }
 
+        $this->loguj('konto utworzone', ['id' => $id, 'email' => $email, 'rola' => $rola]);
+
         return ['ok' => true, 'blad' => null, 'id' => $id];
     }
 
@@ -97,6 +99,8 @@ class UzytkownicySerwis
             return $this->blad('Nie udało się zmienić roli.');
         }
 
+        $this->loguj('konto rola zmieniona', $user, 'rola=' . $rola);
+
         return ['ok' => true, 'blad' => null];
     }
 
@@ -119,6 +123,9 @@ class UzytkownicySerwis
             return $this->blad('Nie udało się ustawić hasła.');
         }
 
+        // Bez hasła — tylko ślad, że hasło zostało zmienione.
+        $this->loguj('konto haslo zmienione', $user);
+
         return ['ok' => true, 'blad' => null];
     }
 
@@ -139,6 +146,8 @@ class UzytkownicySerwis
         if ($this->model->update($id, ['aktywny' => $aktywny]) === false) {
             return $this->blad('Nie udało się zmienić statusu konta.');
         }
+
+        $this->loguj('konto aktywny zmienione', $user, 'aktywny=' . ($aktywny ? 'tak' : 'nie'));
 
         return ['ok' => true, 'blad' => null];
     }
@@ -164,6 +173,8 @@ class UzytkownicySerwis
         if ($this->model->delete($id) === false) {
             return $this->blad('Nie udało się usunąć konta.');
         }
+
+        $this->loguj('konto usuniete', $user, 'przez_id=' . $idWykonawcy);
 
         return ['ok' => true, 'blad' => null];
     }
@@ -216,5 +227,21 @@ class UzytkownicySerwis
     private function blad(string $komunikat): array
     {
         return ['ok' => false, 'blad' => $komunikat];
+    }
+
+    /**
+     * Ślad audytowy zmian kont (rola/hasło/aktywność/usunięcie) — nigdy bez hasła.
+     *
+     * @param array<string, mixed> $user
+     */
+    private function loguj(string $akcja, array $user, string $dodatek = ''): void
+    {
+        $email = preg_replace('/[\r\n]+/', ' ', (string) ($user['email'] ?? '')) ?? '';
+        $id    = (string) ($user['id'] ?? '');
+        $msg   = 'MCS ' . $akcja . ' id=' . $id . ' email=' . $email;
+        if ($dodatek !== '') {
+            $msg .= ' ' . preg_replace('/[\r\n]+/', ' ', $dodatek);
+        }
+        log_message('info', $msg);
     }
 }

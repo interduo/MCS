@@ -2,6 +2,8 @@
 
 namespace McsPluginy\cloudflare_botnet;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * Klient REST Cloudflare DDoS Botnet Threat Feed (Bearer token).
  *
@@ -36,7 +38,8 @@ class ApiClient
 
     public static function fromEnv(?callable $httpRequest = null): self
     {
-        $base = trim((string) env('mcs.cloudflare_botnet.baseUrl', 'https://api.cloudflare.com/client/v4'));
+        // SSRF: baseUrl z .env tylko https na publicznym hoście (inaczej odrzucony + warning w logu).
+        $base = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.cloudflare_botnet.baseUrl', 'https://api.cloudflare.com/client/v4'), 'mcs.cloudflare_botnet.baseUrl');
         if ($base === '') {
             $base = 'https://api.cloudflare.com/client/v4';
         }
@@ -325,6 +328,8 @@ class ApiClient
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
+            // Redirecty tylko po https (egress https wymuszony także po redirectach).
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_MAXREDIRS      => 3,
             CURLOPT_SSL_VERIFYPEER => $this->tlsVerifyPeer,
             CURLOPT_SSL_VERIFYHOST => $this->tlsVerifyPeer ? 2 : 0,

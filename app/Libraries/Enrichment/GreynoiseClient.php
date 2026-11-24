@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Enrichment;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * GET https://api.greynoise.io/v3/community/{ip}
  * Nagłówek key. 200 i 404 są wynikiem. 429 i 5xx są błędem.
@@ -35,7 +37,8 @@ class GreynoiseClient
     public static function fromEnv(?callable $httpRequest = null): self
     {
         $key  = trim(\App\Libraries\OpcjeMcs::tekst('mcs.greynoise.apiKey'));
-        $base = trim((string) env('mcs.greynoise.baseUrl', 'https://api.greynoise.io'));
+        // SSRF: baseUrl z .env tylko https na publicznym hoście (inaczej odrzucony + warning w logu).
+        $base = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.greynoise.baseUrl', 'https://api.greynoise.io'), 'mcs.greynoise.baseUrl');
 
         return new self(
             $key,
@@ -148,6 +151,14 @@ class GreynoiseClient
      */
     private function curl(string $url): array
     {
+        // SSRF: przed realnym wyjściem curl — https + publiczne IP po resolpcie DNS.
+        $blad = BezpiecznyUrl::waliduj($url);
+        if ($blad !== null) {
+            log_message('warning', 'MCS GreyNoise egress odrzucony (' . $blad . ') host=' . BezpiecznyUrl::host($url));
+
+            return $this->blad(0, 'Odrzucono adres egress (https + publiczny IP): ' . $blad);
+        }
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,

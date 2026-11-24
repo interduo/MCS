@@ -1,0 +1,47 @@
+# CI dla kyob/MCS: testy + audyt bezpieczeństwa zależności (composer audit).
+# Uruchamiane przy każdym PR i pushu na main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php:
+          - '8.2'
+          - '8.4'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # libc-client-dev / libkrb5-dev — wymagane do kompilacji ext imap (pecl).
+      - name: Zależności systemowe (php-imap)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libc-client-dev libkrb5-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl, curl, dom, xml, sqlite3, pdo_sqlite, pgsql, pdo_pgsql, imap
+          coverage: pcov
+          cache: composer
+
+      - name: Instalacja zależności z composer.lock
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # Wykrywa znane CVE w zależnościach z composer.lock (composer 2.4+).
+      - name: Audyt bezpieczeństwa (composer audit --locked)
+        run: composer audit --locked
+
+      - name: Testy (phpunit)
+        run: vendor/bin/phpunit
