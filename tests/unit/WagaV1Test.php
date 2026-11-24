@@ -1,6 +1,5 @@
 <?php
 
-use App\Libraries\WagaV0;
 use App\Libraries\WagaV1;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -105,16 +104,5 @@ final class WagaV1Test extends CIUnitTestCase
         $wynik = (new WagaV1())->wylicz('exposure', ['report_type' => 'ssl-cve-scan']);
 
         $this->assertSame('high', $wynik['waga']);
-    }
-
-    public function testV0NadalDostepneJakoFallback(): void
-    {
-        $v0 = (new WagaV0())->wylicz('reputation', ['filtr' => 'RED']);
-        $v1 = (new WagaV1())->wylicz('reputation', ['filtr' => 'RED']);
-
-        $this->assertSame('v0', $v0['wersja']);
-        $this->assertSame('high', $v0['waga']);
-        $this->assertSame('v1', $v1['wersja']);
-        $this->assertSame('critical', $v1['waga']);
     }
 }

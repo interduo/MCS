@@ -15,8 +15,6 @@ namespace App\Libraries;
  * - `severity` / `confidence` / `waga_jawna`: max(baza, sygnał) — nie obniża malware itd.
  * - Shadowserver `tag` / MojeCert `report_type`: podbicie wg typu raportu (max)
  * - Play `message_type`: Mitigation→critical, Event→high, CIDR→low (max)
- *
- * WagaV0 zostaje w repo jako fallback / porównanie historyczne.
  */
 class WagaV1
 {
