@@ -490,4 +490,127 @@ final class IpShowViewTest extends CIUnitTestCase
         $this->assertStringContainsString('spamcop (błąd)', $html);
         $this->assertStringNotContainsString('id="dnsbl-listed">nie<', $html);
     }
+
+    /**
+     * #435: kontenery wyników enrichment mają aria-live="polite"; skrypt ustawia stan
+     * ładowania (aria-busy + spinner + „Sprawdzam…”); przyciski disabled mają title.
+     */
+    public function testPaneleEnrichmentAriaLiveStanLadowaniaITitleNaDisabled(): void
+    {
+        $html = view('ip/show', $this->daneWidokuIp([
+            'abuseipdbTryb'      => 'brak_klucza',
+            'abuseipdbKomunikat' => 'Brak mcs.abuseipdb.apiKey — ustaw w .env albo fixturePath.',
+        ]));
+
+        // aria-live="polite" na wszystkich sześciu kontenerach wyników
+        $this->assertSame(6, substr_count($html, 'aria-live="polite"'));
+        foreach (['abuseipdb', 'ismalicious', 'greynoise', 'spamrats', 'dnsbl', 'lms'] as $panel) {
+            $this->assertMatchesRegularExpression(
+                '/<div id="' . $panel . '-wynik"[^>]*aria-live="polite"/',
+                $html,
+            );
+        }
+
+        // stan ładowania: helper + aria-busy + spinner + tekst, podpięty pod wszystkie 6 POST
+        $this->assertStringContainsString('window.mcsPrzyciskZajety', $html);
+        $this->assertStringContainsString("btn.setAttribute('aria-busy', 'true')", $html);
+        $this->assertStringContainsString('spinner-border spinner-border-sm', $html);
+        $this->assertStringContainsString('Sprawdzam…', $html);
+        $this->assertSame(6, substr_count($html, 'mcsPrzyciskZajety(btn, true)'));
+        $this->assertSame(6, substr_count($html, 'mcsPrzyciskZajety(btn, false)'));
+
+        // przyciski disabled (brak_klucza AbuseIPDB) mają title z wyjaśnieniem
+        $this->assertMatchesRegularExpression(
+            '/<button[^>]*id="abuseipdb-sprawdz"[^>]*disabled title="Brak klucza mcs\.abuseipdb\.apiKey[^"]*"/s',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<button[^>]*id="abuseipdb-force"[^>]*disabled title="[^"]+"/s',
+            $html,
+        );
+        // alerty błędów są w drzewie DOM (role="alert"), nie tylko doklejane JS-em
+        $this->assertMatchesRegularExpression(
+            '/<div class="alert alert-danger[^"]*" id="abuseipdb-komunikat" role="alert"/',
+            $html,
+        );
+    }
+
+    /**
+     * #435: dla IPv6 przyciski SpamRats/DNSBL są disabled z title (nie samo disabled).
+     */
+    public function testPrzyciskiSpamratsIDnsblDisabledDlaIpv6MajaTitle(): void
+    {
+        $html = view('ip/show', $this->daneWidokuIp([
+            'title'    => 'IP 2001:db8::1 — MCS',
+            'ipNav'    => '2001:db8::1',
+            'szukajIp' => '2001:db8::1',
+            'ip'       => '2001:db8::1',
+        ]));
+
+        $this->assertMatchesRegularExpression(
+            '/<button[^>]*id="spamrats-sprawdz"[^>]*disabled title="SpamRats DNSBL obsługuje tylko IPv4"/s',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<button[^>]*id="dnsbl-sprawdz"[^>]*disabled title="DNSBL w MCS obsługuje tylko IPv4"/s',
+            $html,
+        );
+    }
+
+    /**
+     * #436: bilans <div>/</div> w źródle widoku karty IP wynosi 0.
+     */
+    public function testZrodloWidokuIpMaZbilansowaneDivy(): void
+    {
+        $zrodlo = (string) file_get_contents(APPPATH . 'Views/ip/show.php');
+
+        $this->assertSame(substr_count($zrodlo, '<div'), substr_count($zrodlo, '</div>'));
+    }
+
+    /**
+     * @param array<string, mixed> $nadpisz
+     *
+     * @return array<string, mixed>
+     */
+    private function daneWidokuIp(array $nadpisz = []): array
+    {
+        return array_merge([
+            'title'           => 'IP 198.51.100.10 — MCS',
+            'navAktywny'      => 'ip',
+            'ipNav'           => '198.51.100.10',
+            'szukajIp'        => '198.51.100.10',
+            'ip'              => '198.51.100.10',
+            'blad'            => null,
+            'statusIp'        => ['max_waga' => '', 'liczba_problemow' => 0, 'top_tytuly' => []],
+            'problemy'        => [],
+            'zrodla'          => [],
+            'filtrZrodlo'     => null,
+            'asMatchWlaczone' => false,
+            'naszeIp'         => false,
+            'email'           => 'op@example.com',
+            'rola'            => 'operator',
+            'lmsTryb'         => 'cache',
+            'lmsCache'        => null,
+            'lmsKomunikat'    => null,
+            'abuseipdbTryb'      => 'cache',
+            'abuseipdbCache'     => null,
+            'abuseipdbKomunikat' => null,
+            'ismaliciousTryb'      => 'cache',
+            'ismaliciousCache'     => null,
+            'ismaliciousKomunikat' => null,
+            'greynoiseTryb'        => 'cache',
+            'greynoiseCache'       => null,
+            'greynoiseKomunikat'   => null,
+            'spamratsTryb'         => 'cache',
+            'spamratsCache'        => null,
+            'spamratsKomunikat'    => null,
+            'dnsblTryb'            => 'dns',
+            'dnsblCache'           => null,
+            'dnsblKomunikat'       => null,
+            'flashOk'            => null,
+            'flashBlad'          => null,
+            'revDnsWlaczone'     => false,
+            'revDns'             => null,
+        ], $nadpisz);
+    }
 }

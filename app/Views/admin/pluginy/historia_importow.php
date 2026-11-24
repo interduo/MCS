@@ -109,11 +109,26 @@
                         </tbody>
                     </table>
                 </div>
-                <?php if (! empty($pager)): ?>
-                    <div class="d-flex justify-content-center mt-3">
-                        <?= $pager->only(['zrodlo', 'status', 'q', 'od', 'do'])->links() ?>
-                    </div>
-                <?php endif; ?>
+                <?php
+                // #439: licznik „Wyniki X–Y z Z” jak w kolejka/incydenty; pager tylko przy więcej niż 1 stronie.
+                $importyLiczba = is_array($importy) ? count($importy) : 0;
+                $razem         = ! empty($pager) ? (int) $pager->getTotal() : $importyLiczba;
+                $naStrone      = ! empty($pager) ? (int) $pager->getPerPage() : max(1, $importyLiczba);
+                $strona        = ! empty($pager) ? (int) $pager->getCurrentPage() : 1;
+                $stron         = ! empty($pager) ? (int) $pager->getPageCount() : 1;
+                $listaOd       = $razem > 0 ? ($strona - 1) * $naStrone + 1 : 0;
+                $listaDo       = min($razem, $strona * $naStrone);
+                ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                    <p class="small text-body-secondary mb-0">
+                        Wyniki <?= $listaOd ?>–<?= $listaDo ?> z <?= $razem ?>
+                    </p>
+                    <?php if (! empty($pager) && $stron > 1): ?>
+                        <div class="d-flex justify-content-center">
+                            <?= $pager->only(['zrodlo', 'status', 'q', 'od', 'do'])->links() ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
         </div>
     </div>
