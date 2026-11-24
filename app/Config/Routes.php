@@ -76,10 +76,7 @@ $routes->post('api/badge', 'Api\Badge::index');
 // Zdrowie wtyczek dla monitoringu (Icinga): 200 OK, 503 błąd/nieaktualne.
 $routes->get('api/health', 'Api\Health::index');
 
-// Enrichment AbuseIPDB / LMS (ten sam token co badge; poza indeksem/badge streamowym).
-$routes->get('api/enrichment/abuseipdb', 'Api\EnrichmentAbuseipdb::check');
-$routes->get('api/enrichment/ismalicious', 'Api\EnrichmentIsmalicious::check');
-$routes->get('api/enrichment/spamrats', 'Api\EnrichmentSpamrats::check');
-$routes->get('api/enrichment/dnsbl', 'Api\EnrichmentDnsbl::check');
-$routes->get('api/enrichment/lms', 'Api\EnrichmentLms::check');
-$routes->get('api/enrichment/greynoise', 'Api\EnrichmentGreynoise::check');
+// Enrichment (ten sam token co badge; poza indeksem/badge streamowym).
+// Jeden kontroler parametryzowany źródłem; stare URL-e
+// api/enrichment/{abuseipdb,dnsbl,greynoise,ismalicious,lms,spamrats} to aliasy segmentu.
+$routes->get('api/enrichment/(:segment)', 'Api\Enrichment::check/$1');
