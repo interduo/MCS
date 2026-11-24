@@ -99,15 +99,22 @@ class ImportModel extends Model
                 ->groupEnd();
         }
 
+        // Granice doby liczymy w UTC (issue #452): sesja PostgreSQL ma wymuszone
+        // '-c timezone=UTC' (app/Config/Database.php, opcje połączenia), więc tekst
+        // 'YYYY-MM-DD' przy kolumnie TIMESTAMPTZ oznacza północ UTC — a NIE północ
+        // Europe/Warsaw (appTimezone). date()/strtotime() bez jawnej strefy zależałyby
+        // od appTimezone i przesuwały granicę o 1–2 h względem sesji PG, więc dzień
+        // filtra parsujemy i renderujemy jawnie w UTC (gmdate).
         $od = $this->normalizujDate($od);
         if ($od !== null) {
+            // 'YYYY-MM-DD' = północ UTC tego dnia w sesji PG.
             $this->where('rozpoczeto_at >=', $od);
         }
 
         $do = $this->normalizujDate($do);
         if ($do !== null) {
-            // Wyłącznie następny dzień — obejmuje cały dzień $do niezależnie od strefy w tekście.
-            $nastepny = date('Y-m-d', strtotime($do . ' +1 day'));
+            // Koniec doby UTC dnia $do = północ UTC dnia następnego (bez DST w UTC, więc +86400 s).
+            $nastepny = gmdate('Y-m-d', strtotime($do . ' 00:00:00 UTC') + 86400);
             $this->where('rozpoczeto_at <', $nastepny);
         }
 
