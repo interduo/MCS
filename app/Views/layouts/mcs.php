@@ -237,32 +237,9 @@ $pasekZdrowia = ! empty($email)
     <?= $this->renderSection('content') ?>
 </main>
 
-<footer class="border-top bg-body py-4 mt-auto">
-    <div class="container">
-        <div class="row g-3 align-items-center">
-            <div class="col-12 col-md">
-                <div class="fw-semibold mb-1">
-                    <i class="bi bi-shield-lock-fill me-1 text-primary" aria-hidden="true"></i>
-                    MCS
-                </div>
-                <p class="small text-body-secondary mb-0">
-                    Monitoring incydentów i watchlista IP · © <?= date('Y') ?> MCS
-                </p>
-            </div>
-            <div class="col-12 col-md-auto">
-                <nav class="d-flex flex-wrap gap-3 small" aria-label="Stopka">
-                    <a class="link-body-emphasis text-decoration-none" href="<?= site_url('/') ?>">Dashboard</a>
-                    <a class="link-body-emphasis text-decoration-none" href="<?= site_url('watchlista') ?>">Watchlista</a>
-                    <?php if ($mozePanelAdmin): ?>
-                    <a class="link-body-emphasis text-decoration-none" href="<?= site_url('admin/pluginy') ?>">Wtyczki</a>
-                    <a class="link-body-emphasis text-decoration-none" href="<?= site_url('admin/ustawienia') ?>">Ustawienia</a>
-                    <?php endif; ?>
-                    <?php if ($mozeUzytkownicy): ?>
-                    <a class="link-body-emphasis text-decoration-none" href="<?= site_url('admin/uzytkownicy') ?>">Użytkownicy</a>
-                    <?php endif; ?>
-                </nav>
-            </div>
-        </div>
+<footer class="border-top bg-body py-3 mt-auto">
+    <div class="container small text-body-secondary">
+        MCS · Moja Czysta Sieć · © <?= date('Y') ?>
     </div>
 </footer>
 

@@ -93,6 +93,6 @@ class Incydent extends BaseController
         }
 
         return redirect()->to('/ip/' . rawurlencode($ip))
-            ->with('komunikat', "Ukryto incydent #{$id} w UI (false positive / triage).");
+            ->with('komunikat', "Ukryto incydent #{$id}.");
     }
 }

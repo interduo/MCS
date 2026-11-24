@@ -20,10 +20,7 @@ $asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </nav>
         <h1 class="h3 mb-1">DNSBL — spamerzy w AS</h1>
         <p class="text-body-secondary mb-0">
-            Skaner IPv4 AS<?= $asAsn ?> na listach DNSBL (lokalny resolver, tylko darmowe strefy).
-            Ręczny check Spamhaus:
-            <a href="https://check.spamhaus.org/" target="_blank" rel="noopener noreferrer">check.spamhaus.org</a>
-            (per IP w tabeli lub na karcie IP).
+            Adresy IPv4 z AS<?= $asAsn ?> sprawdzane w darmowych strefach DNSBL.
         </p>
     </div>
 </div>

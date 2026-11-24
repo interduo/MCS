@@ -22,8 +22,7 @@ $etykietaZrodla = static function (string $zrodlo): array {
         </nav>
         <h1 class="h3 mb-1">Opcje strojenia</h1>
         <p class="text-body-secondary mb-0">
-            Progi, limity, TTL, timeouty i ASN. Kolejność: wartość z WWW → <code>.env</code> → domyślna.
-            Sekrety, hosty z poświadczeniami, TLS i ścieżki plików są tylko w <code>.env</code>.
+            Wartość z WWW ma pierwszeństwo przed <code>.env</code>. Sekrety ustawiasz tylko w <code>.env</code>.
         </p>
     </div>
 </div>

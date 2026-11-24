@@ -94,13 +94,8 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
         </nav>
         <h1 class="h3 mb-1">Speedtest — agregaty /24 i /48</h1>
         <p class="text-body-secondary mb-0">
-            Źródło: Ookla <strong>Servers reporting</strong> — tylko testy do Waszego hostowanego serwera
-            (np. Knurów), nie wszystkie speedtesty klientów w internecie.
-            MCS zapisuje wyłącznie pomiary z AS<?= $asAsn ?>; obce IP uderzające w ten sam serwer
-            (też mogą wysycić port w LibreNMS) nie trafiają do bazy.
-            IPv4: Ookla anonimizuje do <span class="font-monospace">*.0</span> (agregat /24);
-            IPv6: kolumna <span class="font-monospace">ipv6 address</span> (agregat /48), gdy brak IPv4.
-            Szukaj spike’ów jak na LibreNMS — progi Mb/s poniżej. Poza indeksem i badge.
+            Ookla <strong>Servers reporting</strong>: testy klientów AS<?= $asAsn ?> do Waszego serwera.
+            Ookla anonimizuje adresy do /24 (IPv4) i /48 (IPv6).
         </p>
     </div>
     <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle px-3 py-2">
@@ -406,7 +401,7 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
         </div>
         <div class="card-body pt-3">
             <?php if ($agregaty === []): ?>
-                <p class="text-body-secondary mb-0">Brak testów Speedtest w wybranym oknie (po imporcie CSV / portalu).</p>
+                <p class="text-body-secondary mb-0">Brak testów Speedtest w wybranym oknie.</p>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

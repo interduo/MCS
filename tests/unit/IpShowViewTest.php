@@ -93,7 +93,7 @@ final class IpShowViewTest extends CIUnitTestCase
         $this->assertStringContainsString('isMalicious', $html);
         $this->assertStringContainsString('SpamRats', $html);
         $this->assertStringContainsString('Sprawdź SpamRats', $html);
-        $this->assertStringContainsString('DNSBL (AS)', $html);
+        $this->assertStringContainsString('id="panel-dnsbl"', $html);
         $this->assertStringContainsString('Sprawdź DNSBL', $html);
         $this->assertStringContainsString('mcs.abuseipdb.apiKey', $html);
         $this->assertStringContainsString('Sprawdź AbuseIPDB', $html);
@@ -211,7 +211,7 @@ final class IpShowViewTest extends CIUnitTestCase
         ]);
 
         $this->assertStringNotContainsString('id="panel-speedtest"', $html);
-        $this->assertStringContainsString('testy w Twoim /24', $html);
+        $this->assertStringContainsString('8 testów w Twoim /24', $html);
         $this->assertStringContainsString('91.231.80.0/24', $html);
         $this->assertStringContainsString('dashboard/speedtest', $html);
         $this->assertStringNotContainsString('st-1001', $html);

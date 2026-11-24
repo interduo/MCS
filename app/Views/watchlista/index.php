@@ -5,8 +5,7 @@
     <div>
         <h1 class="h3 mb-1">Watchlista IP</h1>
         <p class="text-body-secondary mb-0">
-            Adresy do digesta operacyjnego (<code>mcs:digest</code>). Tylko INFO — MCS nie blokuje ani nie karze.
-            Szczegóły: strona IP.
+            Trafiają do digestu (<code>mcs:digest</code>). MCS nie blokuje ani nie karze.
         </p>
     </div>
     <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2">
@@ -50,14 +49,11 @@
 
 <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
-        <h2 class="h5 mb-1">Obserwowane adresy</h2>
-        <p class="small text-body-secondary mb-0"><?= count($lista) ?> pozycji na liście</p>
+        <h2 class="h5 mb-0">Obserwowane adresy</h2>
     </div>
     <div class="card-body pt-3">
         <?php if ($lista === []): ?>
-            <p class="text-body-secondary mb-0">
-                Watchlista jest pusta. Dodaj IP powyżej, potem uruchom <code>php spark mcs:digest</code>.
-            </p>
+            <p class="text-body-secondary mb-0">Lista jest pusta.</p>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">

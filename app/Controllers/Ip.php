@@ -315,7 +315,7 @@ class Ip extends BaseController
             if ($cache === null) {
                 return $this->odpowiedzZCsrf()->setStatusCode(404)->setJSON([
                     'ok'   => false,
-                    'blad' => 'Brak wyniku w cache. Użyj przycisku „Sprawdź” (zapytanie przez POST).',
+                    'blad' => 'Brak zapisanego wyniku. Kliknij „Sprawdź”.',
                     'ip'   => $ip,
                     'tryb' => 'brak_cache',
                 ]);
@@ -337,7 +337,7 @@ class Ip extends BaseController
                 ->setHeader('Retry-After', (string) LimitForce::retryAfter(OpcjeMcs::int('mcs.force.limitUzytkownik')))
                 ->setJSON([
                     'ok'   => false,
-                    'blad' => 'Za dużo odświeżeń (force) płatnych API. Spróbuj później.',
+                    'blad' => 'Za dużo odświeżeń. Spróbuj później.',
                     'ip'   => $ip,
                     'tryb' => 'limit_force',
                 ]);

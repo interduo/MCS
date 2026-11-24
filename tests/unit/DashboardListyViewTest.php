@@ -109,7 +109,7 @@ final class DashboardListyViewTest extends CIUnitTestCase
         ]);
 
         $this->assertStringContainsString('Kolejka dnia', $html);
-        $this->assertStringContainsString('48h', $html);
+        $this->assertStringContainsString('ostatnie 48 h', $html);
         $this->assertStringContainsString('high', $html);
     }
 
@@ -204,7 +204,6 @@ final class DashboardListyViewTest extends CIUnitTestCase
         ]);
 
         $this->assertStringContainsString('Ostatnie incydenty', $html);
-        $this->assertStringContainsString('Najnowsze skróty z indeksu', $html);
         $this->assertStringContainsString('198.51.100.10', $html);
         $this->assertStringContainsString('Test skrót', $html);
         $this->assertStringContainsString('ip/198.51.100.10/incydent/42', $html);

@@ -44,9 +44,7 @@ $pole = (string) ($pole ?? 'klucz');
                         <i class="bi bi-eye" aria-hidden="true"></i>
                     </button>
                 </div>
-                <div class="form-text">
-                    Puste pole i Zapisz usuwa klucz z panelu. Jeśli klucz jest też w pliku .env, wraca ten z pliku.
-                </div>
+                <div class="form-text">Puste pole usuwa klucz z panelu.</div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

@@ -11,10 +11,7 @@
                 <li class="breadcrumb-item active" aria-current="page">Historia importów</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1">Historia importów</h1>
-        <p class="text-body-secondary mb-0">
-            Przebiegi z <code>mcs_importy</code> — filtruj po źródle, statusie, dacie i treści szczegółów.
-        </p>
+        <h1 class="h3 mb-0">Historia importów</h1>
     </div>
     <a href="<?= site_url('admin/pluginy') ?>" class="btn btn-outline-secondary btn-sm">
         Wróć do wtyczek

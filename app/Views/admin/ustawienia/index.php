@@ -3,19 +3,12 @@
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-        <h1 class="h3 mb-1">Ustawienia</h1>
-        <p class="text-body-secondary mb-0">
-            Matchowanie IP do AS<?= (int) $asAsn ?> (Alfa-System), opcje wyświetlania
-            oraz domyślne filtry przeglądu.
-        </p>
+        <h1 class="h3 mb-0">Ustawienia</h1>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <a class="btn btn-sm btn-outline-primary" href="<?= site_url('admin/ustawienia/opcje') ?>">
             <i class="bi bi-sliders me-1" aria-hidden="true"></i>Opcje strojenia
         </a>
-        <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2">
-            AS<?= (int) $asAsn ?>
-        </span>
     </div>
 </div>
 
@@ -38,9 +31,7 @@
         </div>
         <div class="card-body">
             <p class="card-text text-body-secondary">
-                Gdy matchowanie jest <strong>włączone</strong>, przegląd zagrożeń (KPI, ranking IP i ostatnie incydenty)
-                pokazuje automatycznie tylko adresy z poniższych sieci CIDR.
-                Wyłączenie nie usuwa listy — tylko przestaje zawężać przegląd.
+                Po włączeniu przegląd pokazuje tylko adresy z tych sieci.
             </p>
 
             <div class="form-check form-switch mb-3">
@@ -52,20 +43,12 @@
                 </label>
             </div>
 
-            <div class="mb-3">
-                <label class="form-label" for="as198050_cidry">
-                    Prefiksy CIDR (jeden na linię; dozwolone też przecinki/spacje)
-                </label>
+            <div>
+                <label class="form-label" for="as198050_cidry">Prefiksy CIDR, jeden na linię</label>
                 <textarea class="form-control font-monospace" id="as198050_cidry" name="as198050_cidry"
                           rows="12" spellcheck="false"
                           placeholder="np.&#10;91.231.80.0/22&#10;176.97.24.0/21&#10;2a0f:1700::/29"><?= esc((string) old('as198050_cidry', $asCidryTekst, false)) ?></textarea>
             </div>
-
-            <p class="small text-body-secondary mb-0">
-                ASN: <code>AS<?= (int) $asAsn ?></code>.
-                Lista startowa z RIPE (announced-prefixes) — aktualizuj ręcznie przy zmianie routingu.
-                Pusta lista + włączone matchowanie = przegląd bez żadnych IP z CIDR.
-            </p>
         </div>
     </div>
 
@@ -77,13 +60,7 @@
             </h2>
         </div>
         <div class="card-body">
-            <p class="card-text text-body-secondary">
-                Gdy włączone, strona IP pokazuje hostname z zapytania PTR (reverse DNS).
-                Na przeglądzie — tylko gdy wynik jest już w cache (bez cold lookup dla całej listy).
-                Lookup nie wpływa na indeks ani badge.
-            </p>
-
-            <div class="form-check form-switch mb-3">
+            <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" role="switch"
                        name="pokazuj_rev_dns" value="1" id="pokazuj_rev_dns"
                     <?= ! empty($revDnsWlaczone) ? 'checked' : '' ?>>
@@ -91,11 +68,6 @@
                     Pokazuj reverse DNS
                 </label>
             </div>
-
-            <p class="small text-body-secondary mb-0">
-                Domyślnie wyłączone. PTR pochodzi z lokalnego resolwera DNS (<code>gethostbyaddr</code>),
-                wynik cache’owany ~1&nbsp;h. Brak rekordu = brak etykiety (bez błędu).
-            </p>
         </div>
     </div>
 
@@ -124,9 +96,7 @@
         </div>
         <div class="card-body">
             <p class="card-text text-body-secondary">
-                Te wartości obowiązują przy pierwszym wejściu na przegląd i po kliknięciu
-                <strong>Wyczyść</strong>. Ostatni wybór filtrów (łącznie z IP) jest pamiętany w sesji
-                — wracając na Dashboard, zobaczysz poprzednie ustawienia.
+                Na pierwsze wejście i po kliknięciu <strong>Wyczyść</strong>.
             </p>
 
             <div class="row g-3">
@@ -188,10 +158,6 @@
                     </select>
                 </div>
             </div>
-
-            <p class="small text-body-secondary mt-3 mb-0">
-                Pole IP na przeglądzie nie ma wartości domyślnej — to wyszukiwarka, nie stały filtr.
-            </p>
         </div>
     </div>
 
@@ -203,35 +169,13 @@
 </form>
 
 <form method="post" action="<?= site_url('admin/ustawienia/przywroc-domyslne') ?>" class="mb-4"
-      onsubmit="return confirm('Przywrócić domyślną listę prefiksów AS<?= (int) $asAsn ?>? Obecna lista w bazie zostanie nadpisana.');">
+      onsubmit="return confirm('Przywrócić domyślne prefiksy AS<?= (int) $asAsn ?>? Obecna lista zostanie nadpisana.');">
     <?= csrf_field() ?>
-    <button type="submit" class="btn btn-outline-secondary">
+    <button type="submit" class="btn btn-outline-secondary"
+            title="<?= esc(implode(', ', $asDomyslneCidry), 'attr') ?>">
         <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>
-        Przywróć domyślne prefiksy RIPE
+        Przywróć domyślne prefiksy
     </button>
 </form>
-
-<div class="card border-0 shadow-sm rounded-3">
-    <div class="card-body small text-body-secondary">
-        <dl class="row mb-0">
-            <dt class="col-md-3">Co robi matchowanie?</dt>
-            <dd class="col-md-9">
-                Porównuje adres IP incydentu z listą CIDR. Trafienie = adres w AS<?= (int) $asAsn ?>.
-                Nie pobiera live BGP — tylko lokalna lista z tych ustawień.
-            </dd>
-            <dt class="col-md-3">Gdzie widać efekt?</dt>
-            <dd class="col-md-9">
-                Przegląd: przy włączonym AS automatycznie tylko IP z CIDR;
-                filtry startowe z tej strony, potem ostatni wybór z sesji.
-                Strona IP: komunikat, czy adres należy do AS<?= (int) $asAsn ?>;
-                przy włączonym reverse DNS — hostname PTR pod adresem IP.
-            </dd>
-            <dt class="col-md-3">Domyślne prefiksy (seed)</dt>
-            <dd class="col-md-9 mb-0">
-                <code><?= esc(implode(', ', $asDomyslneCidry)) ?></code>
-            </dd>
-        </dl>
-    </div>
-</div>
 
 <?= $this->endSection() ?>

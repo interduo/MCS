@@ -49,9 +49,7 @@ $aktywne   = array_values(array_filter($trafienia, static fn ($t) => \App\Models
     </nav>
     <h1 class="h3 mb-1">ThreatFox IOC <span class="badge <?= $wynikKlasa ?> align-middle fs-6" id="threatfox-wynik"><?= esc($wynikTekst) ?></span></h1>
     <p class="text-body-secondary mb-0">
-        Zbiorcze IOC abuse.ch ThreatFox (get_iocs, ostatnie 1–7 dni) pobierane cyklicznie i dopasowane lokalnie do prefiksów AS
-        (<a href="<?= site_url('admin/ustawienia') ?>">as198050_cidry</a>). Tylko ioc_type <code>ip</code> / <code>ip:port</code>
-        dają trafienia — trafienie tworzy incydent (źródło ThreatFox IOC).
+        IOC typu IP z abuse.ch ThreatFox porównywane z <a href="<?= site_url('admin/ustawienia') ?>">prefiksami AS</a>.
     </p>
 </div>
 
