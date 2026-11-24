@@ -34,6 +34,16 @@ php spark mcs:pobierz all   # import; uruchamiaj z crona co 15 min
 
 Docroot serwera WWW: `public/`. Sekrety trzymaj wyłącznie w `.env`. Nie commituj tego pliku.
 
+## Upgrade
+
+```bash
+git pull
+composer install
+php spark migrate
+```
+
+`php spark mcs:seed-pluginy` uruchom dodatkowo, gdy CHANGELOG dorzuca nowe wtyczki źródeł.
+
 ## Testy
 
 ```bash
@@ -46,6 +56,7 @@ vendor/bin/phpunit
 - Źródła: wtyczki w `plugins/{zrodlo}/` (interfejs `SourcePluginInterface`). Opis kontraktu: [plugins/README.md](plugins/README.md).
 - Nowe źródła startują jako wstrzymane (`import_wstrzymany=true`). Włączasz je świadomie w panelu.
 - Błąd pobrania nigdy nie oznacza "czysto". Brak danych jest osobnym statusem.
+- Integracje na hoście LMS+ siedzą w `scaffold/`: [lms-mcs-badge](scaffold/lms-mcs-badge/README.md) (badge API) i [lms-mcs-mapowanie](scaffold/lms-mcs-mapowanie/README.md) (IP → komputer/abonent). Każdy katalog ma własną instrukcję instalacji.
 
 ## Bezpieczeństwo
 
