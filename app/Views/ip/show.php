@@ -232,8 +232,8 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                                                     default => 'zdarzeń',
                                                 };
                                             ?>
-                                            · <?= esc((string) ($problem['pierwsze_widziane'] ?? '—')) ?>
-                                            → <?= esc((string) ($problem['ostatnio_widziane'] ?? '—')) ?>
+                                            · <?= esc(\App\Libraries\CzasUi::pokaz((string) ($problem['pierwsze_widziane'] ?? ''), '—')) ?>
+                                            → <?= esc(\App\Libraries\CzasUi::pokaz((string) ($problem['ostatnio_widziane'] ?? ''), '—')) ?>
                                         </span>
                                         <?php if ($timeline !== []): ?>
                                             <span class="mini-timeline" aria-label="Aktywność 14 dni" title="Aktywność w ostatnich 14 dniach">
@@ -261,7 +261,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                                                         <span class="small text-body-secondary">
                                                             #<?= $czId ?>
                                                             · <?= esc((string) ($cz['waga'] ?? '')) ?>
-                                                            · <?= esc((string) ($cz['ostatnio_widziane'] ?? '')) ?>
+                                                            · <?= esc(\App\Libraries\CzasUi::pokaz((string) ($cz['ostatnio_widziane'] ?? ''))) ?>
                                                         </span>
                                                     </span>
                                                     <?php if ($czId > 0): ?>
@@ -338,9 +338,9 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Typ</dt>
                 <dd class="col-sm-9 col-md-10" id="ab-usage"><?= esc((string) (($ab['usage_type'] ?? '') !== '' ? $ab['usage_type'] : '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Ostatni raport</dt>
-                <dd class="col-sm-9 col-md-10" id="ab-last"><?= esc((string) (($ab['last_reported_at'] ?? '') !== '' ? $ab['last_reported_at'] : '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10" id="ab-last"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($ab['last_reported_at'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Checked at</dt>
-                <dd class="col-sm-9 col-md-10" id="ab-checked"><?= esc((string) (($ab['checked_at'] ?? '') !== '' ? $ab['checked_at'] : '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10" id="ab-checked"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($ab['checked_at'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Źródło danych</dt>
                 <dd class="col-sm-9 col-md-10" id="ab-zrodlo"><?= esc((string) (($ab['zrodlo_danych'] ?? '') !== '' ? $ab['zrodlo_danych'] : '—')) ?></dd>
             </dl>
@@ -408,7 +408,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Klasyfikacja</dt>
                 <dd class="col-sm-9 col-md-10" id="im-class"><?= esc((string) (($im['classification'] ?? '') !== '' ? $im['classification'] : '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Checked at</dt>
-                <dd class="col-sm-9 col-md-10" id="im-checked"><?= esc((string) (($im['checked_at'] ?? '') !== '' ? $im['checked_at'] : '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10" id="im-checked"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($im['checked_at'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Źródło danych</dt>
                 <dd class="col-sm-9 col-md-10" id="im-zrodlo"><?= esc((string) (($im['zrodlo_danych'] ?? '') !== '' ? $im['zrodlo_danych'] : '—')) ?></dd>
             </dl>
@@ -575,7 +575,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                     echo esc(is_array($srKody) && $srKody !== [] ? implode(', ', $srKody) : '—');
                 ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Checked at</dt>
-                <dd class="col-sm-9 col-md-10" id="sr-checked"><?= esc((string) (($sr['checked_at'] ?? '') !== '' ? $sr['checked_at'] : '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10" id="sr-checked"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($sr['checked_at'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Źródło danych</dt>
                 <dd class="col-sm-9 col-md-10" id="sr-zrodlo"><?= esc((string) (($sr['zrodlo_danych'] ?? '') !== '' ? $sr['zrodlo_danych'] : '—')) ?></dd>
             </dl>
@@ -644,7 +644,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                 Skaner DNSBL (listy darmowe, lokalny resolver):
                 <?php if ($skOstat !== null): ?>
                     ostatni skan <a href="<?= site_url('dashboard/dnsbl?skan=' . (int) $skOstat['id']) ?>">#<?= (int) $skOstat['id'] ?></a>
-                    (<?= esc((string) $skOstat['koniec_at']) ?>, zakres <span class="font-monospace"><?= esc((string) $skOstat['zakres']) ?></span>)
+                    (<?= esc(\App\Libraries\CzasUi::pokaz((string) $skOstat['koniec_at'])) ?>, zakres <span class="font-monospace"><?= esc((string) $skOstat['zakres']) ?></span>)
                 <?php else: ?>
                     brak skanu obejmującego to IP.
                 <?php endif; ?>
@@ -658,7 +658,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                             <span class="badge <?= ! empty($l['informacyjna']) ? 'text-bg-secondary' : 'text-bg-danger' ?>"><?= esc((string) ($l['nazwa'] ?? $l['strefa_kod'])) ?></span>
                             <span class="font-monospace"><?= esc((string) $l['ip']) ?></span>
                             kody <?= esc((string) $l['kody']) ?>
-                            · od <?= esc((string) $l['pierwszy_raz']) ?> · ostatnio <?= esc((string) $l['ostatni_raz']) ?>
+                            · od <?= esc(\App\Libraries\CzasUi::pokaz((string) $l['pierwszy_raz'])) ?> · ostatnio <?= esc(\App\Libraries\CzasUi::pokaz((string) $l['ostatni_raz'])) ?>
                             <?php if ((string) ($l['url'] ?? '') !== ''): ?>
                                 · <a href="<?= esc(\App\Libraries\Dnsbl\DnsblNarzedzia::bezpiecznyUrl((string) $l['url']), 'attr') ?>" target="_blank" rel="noopener noreferrer">Request removal</a>
                             <?php endif; ?>
@@ -724,7 +724,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                     <?php endif; ?>
                 </dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Checked at</dt>
-                <dd class="col-sm-9 col-md-10" id="dnsbl-checked"><?= esc((string) (($dbCache['checked_at'] ?? '') !== '' ? $dbCache['checked_at'] : '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10" id="dnsbl-checked"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($dbCache['checked_at'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Źródło danych</dt>
                 <dd class="col-sm-9 col-md-10" id="dnsbl-zrodlo"><?= esc((string) (($dbCache['zrodlo_danych'] ?? '') !== '' ? $dbCache['zrodlo_danych'] : '—')) ?></dd>
             </dl>

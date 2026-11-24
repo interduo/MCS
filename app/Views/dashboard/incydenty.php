@@ -95,7 +95,7 @@ $asAsn       = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                             $portW = $wiersz['port'] ?? null;
                             ?>
                             <tr class="<?= esc(ltrim($borderWaga), 'attr') ?>">
-                                <td class="small text-nowrap"><?= esc((string) ($wiersz['ostatnio_widziane'] ?? '')) ?></td>
+                                <td class="small text-nowrap"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($wiersz['ostatnio_widziane'] ?? ''))) ?></td>
                                 <td>
                                     <?php if ($ipWiersz !== ''): ?>
                                         <a class="font-monospace text-decoration-none" href="<?= site_url('ip/' . $ipWiersz) ?>"><?= esc($ipWiersz) ?></a>

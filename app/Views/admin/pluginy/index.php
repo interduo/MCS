@@ -57,8 +57,10 @@
                         $importWstrzymany = (bool) ($wiersz['import_wstrzymany'] ?? false);
                         $ukrytyWUi        = (bool) ($wiersz['ukryty_w_ui'] ?? false);
                         $healthOk         = $wiersz['health_ok'] ?? null;
-                        $healthMsg        = \App\Libraries\PluginOpisPolaczenia::bezZargonu(
-                            (string) ($wiersz['health_msg'] ?? ''),
+                        $healthMsg        = \App\Libraries\CzasUi::wTekscie(
+                            \App\Libraries\PluginOpisPolaczenia::bezZargonu(
+                                (string) ($wiersz['health_msg'] ?? ''),
+                            ),
                         );
                         $healthAt         = (string) ($wiersz['health_at'] ?? '');
                         $opisPol          = is_array($wiersz['opis_polaczenia'] ?? null) ? $wiersz['opis_polaczenia'] : [];

@@ -78,7 +78,7 @@
                                 <a class="font-monospace text-decoration-none" href="<?= site_url('ip/' . $ip) ?>"><?= esc($ip) ?></a>
                             </td>
                             <td><?= esc((string) ($w['notatka'] ?? '')) ?: '—' ?></td>
-                            <td class="small text-nowrap"><?= esc((string) ($w['dodano_at'] ?? '')) ?></td>
+                            <td class="small text-nowrap"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($w['dodano_at'] ?? ''))) ?></td>
                             <td><?= esc((string) ($w['dodano_przez'] ?? '')) ?: '—' ?></td>
                             <td>
                                 <form method="post" action="<?= site_url('watchlista/usun') ?>" class="d-inline"

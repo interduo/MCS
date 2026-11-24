@@ -72,9 +72,9 @@ $badgeWaga = static function (string $waga): string {
         <div class="card-body">
             <dl class="row mb-0">
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Pierwsze widziane</dt>
-                <dd class="col-sm-9 col-md-10"><?= esc((string) ($inc['pierwsze_widziane'] ?? '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($inc['pierwsze_widziane'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Ostatnio widziane</dt>
-                <dd class="col-sm-9 col-md-10"><?= esc((string) ($inc['ostatnio_widziane'] ?? '—')) ?></dd>
+                <dd class="col-sm-9 col-md-10"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($inc['ostatnio_widziane'] ?? ''), '—')) ?></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Klucz dedupu</dt>
                 <dd class="col-sm-9 col-md-10"><code><?= esc((string) ($inc['klucz_dedupu'] ?? '—')) ?></code></dd>
                 <dt class="col-sm-3 col-md-2 text-body-secondary">ID</dt>
@@ -113,7 +113,7 @@ $badgeWaga = static function (string $waga): string {
                             ?>
                             <tr>
                                 <th scope="row" class="text-body-secondary fw-normal" style="width:12rem"><?= esc((string) $klucz) ?></th>
-                                <td><?= esc((string) $wartosc) ?></td>
+                                <td><?= esc(\App\Libraries\CzasUi::wTekscie(\App\Libraries\CzasUi::pokaz((string) $wartosc))) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -138,7 +138,7 @@ $badgeWaga = static function (string $waga): string {
                 <ol class="list-group list-group-numbered list-group-flush">
                     <?php foreach ($szczegoly['obserwacje'] as $obs): ?>
                         <li class="list-group-item bg-transparent px-0">
-                            <div class="fw-semibold text-primary"><?= esc((string) ($obs['zaobserwowano_at'] ?? '')) ?></div>
+                            <div class="fw-semibold text-primary"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($obs['zaobserwowano_at'] ?? ''))) ?></div>
                             <div class="small text-body-secondary">
                                 id_w_zrodle: <?= esc((string) ($obs['id_w_zrodle'] ?? '—')) ?>
                                 <?php if (! empty($obs['import_id'])): ?>

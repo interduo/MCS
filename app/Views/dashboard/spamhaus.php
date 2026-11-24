@@ -12,9 +12,9 @@ $wynik     = (string) ($stan['wynik'] ?? 'brak');
 $okAt      = \App\Libraries\CzasUi::dataGodzina((string) ($stan['ostatnie_ok_at'] ?? ''));
 $nastepne  = \App\Libraries\CzasUi::dataGodzina((string) ($stan['nastepne_po'] ?? ''));
 $bledy     = (int) ($stan['bledy_z_rzedu'] ?? 0);
-$plikData  = (string) ($d['plik_data'] ?? '');
+$plikData  = \App\Libraries\CzasUi::wTekscie((string) ($d['plik_data'] ?? ''));
 $healthOk  = $d['health_ok'] ?? null;
-$healthMsg = (string) ($d['health_msg'] ?? '');
+$healthMsg = \App\Libraries\CzasUi::wTekscie((string) ($d['health_msg'] ?? ''));
 $fmtLiczba = static fn (int $n): string => number_format($n, 0, ',', "\u{00A0}");
 $podsumowanie = null;
 if (preg_match(
@@ -98,7 +98,7 @@ $aktywne   = array_values(array_filter($trafienia, static fn ($t) => \App\Models
                 <div class="text-body-secondary small mb-1">Następne pobranie</div>
                 <div class="fw-semibold"><?= $nastepne !== '' ? esc($nastepne) : 'przy najbliższym cronie' ?></div>
                 <?php if ($bledy > 0): ?>
-                    <div class="small text-danger">błędy z rzędu: <?= $bledy ?> — <?= esc((string) ($stan['ostatni_blad'] ?? '')) ?></div>
+                    <div class="small text-danger">błędy z rzędu: <?= $bledy ?> — <?= esc(\App\Libraries\CzasUi::wTekscie((string) ($stan['ostatni_blad'] ?? ''))) ?></div>
                 <?php endif; ?>
             </div>
         </div>
@@ -182,7 +182,7 @@ $aktywne   = array_values(array_filter($trafienia, static fn ($t) => \App\Models
                 <td class="pe-3 small">
                     <?php $paryOpisu = $opisHistorii((string) ($h['opis'] ?? '')); ?>
                     <?php if ($paryOpisu === null): ?>
-                        <span class="text-break"><?= esc((string) ($h['opis'] ?? '')) ?></span>
+                        <span class="text-break"><?= esc(\App\Libraries\CzasUi::wTekscie((string) ($h['opis'] ?? ''))) ?></span>
                     <?php else: ?>
                         <?php foreach (['listy' => array_slice($paryOpisu, 0, -3), 'przebieg' => array_slice($paryOpisu, -3)] as $linia): ?>
                             <div class="d-flex flex-wrap column-gap-2 row-gap-1 align-items-baseline">

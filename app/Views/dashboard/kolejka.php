@@ -151,7 +151,7 @@ $asAsn          = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                                         —
                                     <?php endif; ?>
                                 </td>
-                                <td class="small text-nowrap"><?= esc((string) ($wiersz['ostatnio_widziane'] ?? '—')) ?></td>
+                                <td class="small text-nowrap"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($wiersz['ostatnio_widziane'] ?? ''), '—')) ?></td>
                                 <td class="text-nowrap">
                                     <a class="btn btn-sm btn-outline-primary"
                                        href="<?= $urlIp ?>"><?= esc((string) (($kontekst['cta'] ?? null) ?: 'Otwórz')) ?></a>

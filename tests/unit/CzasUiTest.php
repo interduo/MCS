@@ -18,6 +18,19 @@ final class CzasUiTest extends CIUnitTestCase
     {
         // Europe/Warsaw = CEST (UTC+2) w wrześniu.
         $this->assertSame('2026-09-18 09:30:05', CzasUi::dataGodzina('2026-09-18 07:30:05+00'));
+        // Listopad: Europe/Warsaw = CET (UTC+1), jak strefa systemu.
+        $this->assertSame('2026-11-24 09:46:16', CzasUi::dataGodzina('2026-11-24 08:46:16+00'));
+    }
+
+    public function testPokazITekstZUtc(): void
+    {
+        $this->assertSame('—', CzasUi::pokaz('', '—'));
+        $this->assertSame('2026-11-20', CzasUi::pokaz('2026-11-20'));
+        $this->assertSame('2026-11-24 10:46:00', CzasUi::pokaz('2026-11-24 09:46:00+00'));
+        $this->assertSame(
+            'ponowna próba po 2026-11-24 10:46:00',
+            CzasUi::wTekscie('ponowna próba po 2026-11-24 09:46 UTC'),
+        );
     }
 
     public function testWzglednieSekundyMinutyGodzinyDni(): void

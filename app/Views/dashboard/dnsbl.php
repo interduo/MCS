@@ -123,7 +123,7 @@ $asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                                 ?>
                             </td>
                             <td class="small"><?= esc((string) (($w['zakres_skanu'] ?? '') !== '' ? $w['zakres_skanu'] : '—')) ?></td>
-                            <td class="small font-monospace"><?= esc((string) (($w['checked_at'] ?? '') !== '' ? $w['checked_at'] : '—')) ?></td>
+                            <td class="small font-monospace"><?= esc(\App\Libraries\CzasUi::pokaz((string) ($w['checked_at'] ?? ''), '—')) ?></td>
                             <td class="pe-3">
                                 <a class="btn btn-sm btn-outline-secondary"
                                    href="https://check.spamhaus.org/results/?query=<?= rawurlencode($ipW) ?>"
