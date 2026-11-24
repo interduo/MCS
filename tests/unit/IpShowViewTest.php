@@ -557,6 +557,42 @@ final class IpShowViewTest extends CIUnitTestCase
         );
     }
 
+    public function testNieskonfigurowaneWtyczkiNieMajaKartNaStronieIp(): void
+    {
+        $html = view('ip/show', $this->daneWidokuIp([
+            'abuseipdbCache'    => ['abuse_confidence_score' => 90],
+            'speedtestCidr'     => '198.51.100.0/24',
+            'speedtestLiczba24' => 3,
+            'wtyczkiIp'         => [
+                'lms'         => false,
+                'abuseipdb'   => false,
+                'ismalicious' => false,
+                'greynoise'   => false,
+                'spamrats'    => false,
+                'speedtest'   => false,
+            ],
+        ]));
+
+        foreach (['lms', 'abuseipdb', 'ismalicious', 'greynoise', 'spamrats'] as $panel) {
+            $this->assertStringNotContainsString('id="panel-' . $panel . '"', $html);
+        }
+        $this->assertStringNotContainsString('id="status-lms-skrot"', $html);
+        $this->assertStringNotContainsString('id="speedtest-cidr-note"', $html);
+        $this->assertStringContainsString('id="panel-dnsbl"', $html);
+    }
+
+    public function testSkonfigurowaneWtyczkiMajaKartyNaStronieIp(): void
+    {
+        $html = view('ip/show', $this->daneWidokuIp([
+            'wtyczkiIp' => ['lms' => true, 'abuseipdb' => true, 'greynoise' => false],
+        ]));
+
+        $this->assertStringContainsString('id="panel-lms"', $html);
+        $this->assertStringContainsString('id="panel-abuseipdb"', $html);
+        $this->assertStringContainsString('id="panel-ismalicious"', $html);
+        $this->assertStringNotContainsString('id="panel-greynoise"', $html);
+    }
+
     /**
      * #436: bilans <div>/</div> w źródle widoku karty IP wynosi 0.
      */

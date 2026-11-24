@@ -56,13 +56,34 @@ final class LayoutNavTest extends CIUnitTestCase
         $this->assertStringContainsString('dashboard/dnsbl', $html);
     }
 
+    public function testNieskonfigurowaneWtyczkiNieMajaZakladekWMenu(): void
+    {
+        $html = $this->html('admin', null, ['speedtest' => false, 'threatfox' => false]);
+
+        $this->assertStringNotContainsString('dashboard/speedtest', $html);
+        $this->assertStringNotContainsString('dashboard/threatfox', $html);
+        $this->assertStringContainsString('dashboard/dnsbl', $html);
+        $this->assertStringContainsString('dashboard/spamhaus', $html);
+        $this->assertStringContainsString('admin/pluginy', $html);
+    }
+
+    public function testSkonfigurowaneWtyczkiMajaZakladkiWMenu(): void
+    {
+        $html = $this->html('operator');
+
+        $this->assertStringContainsString('dashboard/speedtest', $html);
+        $this->assertStringContainsString('dashboard/threatfox', $html);
+    }
+
     /**
      * @param array{status: string, opis: string}|null $pasek
+     * @param array{speedtest: bool, threatfox: bool}  $wtyczkiMenu
      */
-    private function html(string $rola, ?array $pasek = null): string
+    private function html(string $rola, ?array $pasek = null, array $wtyczkiMenu = ['speedtest' => true, 'threatfox' => true]): string
     {
         return view('watchlista/index', [
             'pasekZdrowia' => $pasek,
+            'wtyczkiMenu'  => $wtyczkiMenu,
             'title'      => 'Watchlista IP — MCS',
             'navAktywny' => 'watchlista',
             'email'      => 'test@example.com',

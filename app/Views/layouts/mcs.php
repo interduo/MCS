@@ -91,6 +91,9 @@ $rolaKod        = (string) ($rola ?? '');
 $rolaEtykieta   = $rolaKod !== '' ? \App\Libraries\Rola::etykieta($rolaKod) : '';
 $mozePanelAdmin = \App\Libraries\Rola::mozePanelAdmin($rolaKod);
 $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
+// Zmienna $wtyczkiMenu pozwala podać dane w testach.
+$wtyczkiMenu = $wtyczkiMenu
+    ?? (! empty($email) ? \App\Libraries\WidocznoscWtyczek::menu() : ['speedtest' => true, 'threatfox' => true]);
 ?>
 
 <nav class="navbar navbar-expand-lg bg-body border-bottom shadow-sm sticky-top">
@@ -131,10 +134,12 @@ $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
                             <a class="dropdown-item<?= $nav === 'incydenty' ? ' active' : '' ?>"
                                href="<?= site_url('dashboard/incydenty') ?>">Ostatnie incydenty</a>
                         </li>
+                        <?php if (! empty($wtyczkiMenu['speedtest'])): ?>
                         <li>
                             <a class="dropdown-item<?= $nav === 'speedtest' ? ' active' : '' ?>"
                                href="<?= site_url('dashboard/speedtest') ?>">Speedtest</a>
                         </li>
+                        <?php endif; ?>
                         <li>
                             <a class="dropdown-item<?= $nav === 'dnsbl' ? ' active' : '' ?>"
                                href="<?= site_url('dashboard/dnsbl') ?>">DNSBL</a>
@@ -143,10 +148,12 @@ $mozeUzytkownicy = \App\Libraries\Rola::mozeUzytkownicy($rolaKod);
                             <a class="dropdown-item<?= $nav === 'spamhaus' ? ' active' : '' ?>"
                                href="<?= site_url('dashboard/spamhaus') ?>">Spamhaus DROP</a>
                         </li>
+                        <?php if (! empty($wtyczkiMenu['threatfox'])): ?>
                         <li>
                             <a class="dropdown-item<?= $nav === 'threatfox' ? ' active' : '' ?>"
                                href="<?= site_url('dashboard/threatfox') ?>">ThreatFox IOC</a>
                         </li>
+                        <?php endif; ?>
                     </ul>
                 </li>
                 <li class="nav-item">

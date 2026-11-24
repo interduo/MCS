@@ -12,6 +12,10 @@ $badgeWaga = static function (string $waga): string {
     };
 };
 $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$wtyczki = array_merge(
+    ['lms' => true, 'abuseipdb' => true, 'ismalicious' => true, 'greynoise' => true, 'spamrats' => true, 'speedtest' => true],
+    is_array($wtyczkiIp ?? null) ? $wtyczkiIp : [],
+);
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -80,6 +84,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                     </span>
                 <?php endif; ?>
             </div>
+            <?php if ($wtyczki['lms']): ?>
             <div class="mt-2 small" id="status-lms-skrot">
                 <?php if ($lmsTrafiony): ?>
                     <span class="text-body-secondary">LMS:</span>
@@ -95,9 +100,11 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                     <span class="text-body-secondary">LMS: brak danych</span>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
         </div>
     </div>
 
+    <?php if ($wtyczki['lms']): ?>
     <div class="card border-0 shadow-sm rounded-3 mb-4<?= $lmsTrafiony ? ' border-start border-4 border-primary' : '' ?>" id="panel-lms">
         <div class="card-body py-3">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
@@ -155,6 +162,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body py-3">
@@ -277,7 +285,8 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 <?php endif; ?>
 
 <?php if (empty($blad)): ?>
-<div class="card border-0 shadow-sm rounded-3" id="panel-abuseipdb">
+<?php if ($wtyczki['abuseipdb']): ?>
+<div class="card border-0 shadow-sm rounded-3 mb-4" id="panel-abuseipdb">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-search me-1 text-primary" aria-hidden="true"></i>
@@ -331,8 +340,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<div class="card border-0 shadow-sm rounded-3" id="panel-ismalicious">
+<?php if ($wtyczki['ismalicious']): ?>
+<div class="card border-0 shadow-sm rounded-3 mb-4" id="panel-ismalicious">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-shield-exclamation me-1 text-danger" aria-hidden="true"></i>
@@ -396,8 +407,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<div class="card border-0 shadow-sm rounded-3 mt-4" id="panel-greynoise">
+<?php if ($wtyczki['greynoise']): ?>
+<div class="card border-0 shadow-sm rounded-3 mb-4" id="panel-greynoise">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-radar me-1 text-info" aria-hidden="true"></i>
@@ -459,8 +472,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<div class="card border-0 shadow-sm rounded-3 mt-4" id="panel-spamrats">
+<?php if ($wtyczki['spamrats']): ?>
+<div class="card border-0 shadow-sm rounded-3 mb-4" id="panel-spamrats">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-envelope-exclamation me-1 text-warning" aria-hidden="true"></i>
@@ -558,8 +573,9 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<div class="card border-0 shadow-sm rounded-3 mt-4" id="panel-dnsbl">
+<div class="card border-0 shadow-sm rounded-3 mb-4" id="panel-dnsbl">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-shield-exclamation me-1 text-danger" aria-hidden="true"></i>
@@ -709,8 +725,8 @@ $stLiczba = (int) ($speedtestLiczba24 ?? 0);
 $stSlowo  = $stLiczba === 1 ? 'test'
     : (in_array($stLiczba % 10, [2, 3, 4], true) && ! in_array($stLiczba % 100, [12, 13, 14], true) ? 'testy' : 'testów');
 ?>
-<?php if ($stCidr !== null && $stLiczba > 0): ?>
-<p class="small text-body-secondary mt-4 mb-0" id="speedtest-cidr-note">
+<?php if ($wtyczki['speedtest'] && $stCidr !== null && $stLiczba > 0): ?>
+<p class="small text-body-secondary mb-0" id="speedtest-cidr-note">
     <i class="bi bi-speedometer2 me-1" aria-hidden="true"></i>
     Speedtest: <?= $stLiczba ?> <?= $stSlowo ?> w Twoim /24
     (<a class="font-monospace" href="<?= site_url('dashboard/speedtest') ?>"><?= esc($stCidr) ?></a>)
