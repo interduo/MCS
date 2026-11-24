@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Enrichment;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * Klient AbuseIPDB API v2 — tylko GET /check (enrichment, nie stream).
  *
@@ -37,7 +39,8 @@ class AbuseipdbClient
     public static function fromEnv(?callable $httpRequest = null): self
     {
         $key     = trim((string) env('mcs.abuseipdb.apiKey', ''));
-        $base    = trim((string) env('mcs.abuseipdb.baseUrl', 'https://api.abuseipdb.com/api/v2'));
+        // SSRF: baseUrl z .env tylko https na publicznym hoście (inaczej odrzucony + warning w logu).
+        $base    = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.abuseipdb.baseUrl', 'https://api.abuseipdb.com/api/v2'), 'mcs.abuseipdb.baseUrl');
         $maxAge  = \App\Libraries\OpcjeMcs::int('mcs.abuseipdb.maxAgeInDays');
         $verbose = filter_var(env('mcs.abuseipdb.verbose', true), FILTER_VALIDATE_BOOLEAN);
 
@@ -117,6 +120,20 @@ class AbuseipdbClient
         $headerLines = [];
         foreach ($headers as $k => $v) {
             $headerLines[] = $k . ': ' . $v;
+        }
+
+        // SSRF: przed realnym wyjściem curl — https + publiczne IP po resolpcie DNS.
+        $blad = BezpiecznyUrl::waliduj($url);
+        if ($blad !== null) {
+            log_message('warning', 'MCS AbuseIPDB egress odrzucony (' . $blad . ') host=' . BezpiecznyUrl::host($url));
+
+            return [
+                'ok'        => false,
+                'http_code' => 0,
+                'data'      => null,
+                'error'     => 'Odrzucono adres egress (https + publiczny IP): ' . $blad,
+                'raw_body'  => '',
+            ];
         }
 
         $ch = curl_init($url);

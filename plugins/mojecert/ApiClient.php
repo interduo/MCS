@@ -2,6 +2,7 @@
 
 namespace McsPluginy\mojecert;
 
+use App\Libraries\Siec\BezpiecznyUrl;
 use Config\Services;
 use RuntimeException;
 
@@ -39,7 +40,8 @@ class ApiClient
 
     public static function fromEnv(?callable $httpRequest = null): self
     {
-        $base  = trim((string) env('mcs.mojecert.baseUrl', 'https://moje.cert.pl'));
+        // SSRF: baseUrl z .env tylko https na publicznym hoście (inaczej odrzucony + warning w logu).
+        $base  = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.mojecert.baseUrl', 'https://moje.cert.pl'), 'mcs.mojecert.baseUrl');
         $token = trim((string) env('mcs.mojecert.apiToken', ''));
         $skip  = filter_var(env('mcs.mojecert.tlsSkipVerify', false), FILTER_VALIDATE_BOOLEAN);
 

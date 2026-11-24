@@ -2,6 +2,8 @@
 
 namespace McsPluginy\wanguard;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * Klient REST Wanguard API v1 — Basic Auth.
  * Lista Finished (paginacja) + concurrent details (jak LMS bin).
@@ -44,8 +46,11 @@ class ApiClient
         $limit = \App\Libraries\OpcjeMcs::int('mcs.wanguard.apiListLimit');
         $conc  = \App\Libraries\OpcjeMcs::int('mcs.wanguard.concurrency');
 
+        // SSRF: apiUrl z .env tylko https na publicznym hoście (inaczej odrzucony → brak konfiguracji).
+        $apiUrl = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.wanguard.apiUrl', ''), 'mcs.wanguard.apiUrl');
+
         return new self(
-            trim((string) env('mcs.wanguard.apiUrl', '')),
+            $apiUrl,
             trim((string) env('mcs.wanguard.apiUser', '')),
             (string) env('mcs.wanguard.apiPassword', ''),
             $limit > 0 ? $limit : 500,
@@ -244,6 +249,8 @@ class ApiClient
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
+            // Redirecty tylko po https (egress https wymuszony także po redirectach).
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_MAXREDIRS      => 3,
             CURLOPT_SSL_VERIFYPEER => $this->tlsVerifyPeer,
             CURLOPT_SSL_VERIFYHOST => $this->tlsVerifyPeer ? 2 : 0,

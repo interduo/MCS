@@ -36,7 +36,11 @@ class Auth extends BaseController
             return redirect()->to('/login')->with('blad', 'Podaj e-mail i hasło.');
         }
 
-        if (! (new LimitLogowania())->pozwol($this->request->getIPAddress(), $email)) {
+        $ip = (string) $this->request->getIPAddress();
+
+        if (! (new LimitLogowania())->pozwol($ip, $email)) {
+            log_message('warning', 'MCS login odrzucony przez limit ip=' . $ip . ' email=' . self::doLogu($email));
+
             return redirect()->to('/login')->with('blad', self::KOMUNIKAT_LIMIT);
         }
 
@@ -47,8 +51,13 @@ class Auth extends BaseController
         $ok   = password_verify($haslo, $hash);
 
         if ($user === null || ! $ok) {
+            // Ślad audytowy brute-force: kto (email), skąd (ip), kiedy (timestamp logu). Bez hasła.
+            log_message('warning', 'MCS login nieudane ip=' . $ip . ' email=' . self::doLogu($email));
+
             return redirect()->to('/login')->with('blad', 'Nieprawidłowy e-mail lub hasło.');
         }
+
+        log_message('info', 'MCS login ok ip=' . $ip . ' email=' . self::doLogu($email));
 
         session()->regenerate(true);
         session()->set([
@@ -74,5 +83,13 @@ class Auth extends BaseController
         $sesja->destroy();
 
         return redirect()->to('/login');
+    }
+
+    /**
+     * Wartość do logu audytowego: bez znaków nowej linii (log injection).
+     */
+    private static function doLogu(string $wartosc): string
+    {
+        return preg_replace('/[\r\n]+/', ' ', $wartosc) ?? '';
     }
 }

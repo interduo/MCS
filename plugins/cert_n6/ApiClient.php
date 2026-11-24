@@ -2,6 +2,8 @@
 
 namespace McsPluginy\cert_n6;
 
+use App\Libraries\Siec\BezpiecznyUrl;
+
 /**
  * Klient REST n6 (report/inside). Auth jak LMS: Bearer i/lub client cert (mTLS).
  */
@@ -49,7 +51,8 @@ class ApiClient
 
     public static function fromEnv(?callable $httpRequest = null): self
     {
-        $base = trim((string) env('mcs.cert_n6.baseUrl', 'https://n6api.cert.pl'));
+        // SSRF: baseUrl z .env tylko https na publicznym hoście (inaczej odrzucony + warning w logu).
+        $base = BezpiecznyUrl::baseUrlZEnv((string) env('mcs.cert_n6.baseUrl', 'https://n6api.cert.pl'), 'mcs.cert_n6.baseUrl');
         $res  = trim((string) env('mcs.cert_n6.reportResource', 'report/inside'));
 
         $bearer = trim((string) env('mcs.cert_n6.bearerToken', ''));
@@ -158,6 +161,8 @@ class ApiClient
         $options = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
+            // Redirecty tylko po https (egress https wymuszony także po redirectach).
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_MAXREDIRS      => 5,
             CURLOPT_SSL_VERIFYPEER => $this->tlsVerifyPeer,
             CURLOPT_SSL_VERIFYHOST => $this->tlsVerifyPeer ? 2 : 0,
