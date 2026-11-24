@@ -410,12 +410,13 @@ class Dashboard extends BaseController
 
     /**
      * GET dashboard/dnsbl/status/{id} — JSON dla pollingu co 2 s.
+     * Read-only: tylko SELECT — oznaczPorzucone() wykonują render widoku
+     * (daneSkanera/dnsblSkan) oraz cron (HarmonogramSkanera::krok).
      */
     public function dnsblStatus(int $id)
     {
         try {
             $w = new \App\Libraries\Dnsbl\SkanyWidok();
-            $w->oznaczPorzucone();
             $s = $w->skan($id);
         } catch (\Throwable) {
             $s = null;

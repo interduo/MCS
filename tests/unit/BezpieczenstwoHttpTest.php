@@ -50,7 +50,7 @@ final class BezpieczenstwoHttpTest extends CIUnitTestCase
         $this->assertArrayNotHasKey('logout', $routes->getRoutes('GET'));
     }
 
-    public function testLayoutMaFormularzWylogowaniaISri(): void
+    public function testLayoutMaFormularzWylogowaniaIAssetyLokalne(): void
     {
         $html = view('watchlista/index', [
             'title'      => 'Watchlista IP — MCS',
@@ -65,7 +65,11 @@ final class BezpieczenstwoHttpTest extends CIUnitTestCase
 
         $this->assertMatchesRegularExpression('#<form method="post" action="[^"]*logout"#', $html);
         $this->assertStringContainsString('name="csrf_test_name"', $html);
-        $this->assertStringContainsString('sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+', $html);
+        // issue #455: assety z public/vendor (self-host), bez requestów do CDN
+        $this->assertStringNotContainsString('cdn.jsdelivr.net', $html);
+        $this->assertStringContainsString('vendor/bootstrap-5.3.3/dist/css/bootstrap.min.css', $html);
+        $this->assertStringContainsString('vendor/bootstrap-icons-1.11.3/font/bootstrap-icons.min.css', $html);
+        $this->assertStringContainsString('vendor/bootstrap-5.3.3/dist/js/bootstrap.bundle.min.js', $html);
     }
 
     public function testCookieSecureAutoDlaHttp(): void

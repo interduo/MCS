@@ -2,12 +2,19 @@
 
 namespace App\Libraries\Enrichment;
 
+use App\Libraries\Dnsbl\DnsPakiet;
+use App\Libraries\Dnsbl\SilnikZapytan;
+use App\Libraries\Dnsbl\Skaner;
+
 /**
  * Multi-zone DNSBL client (IPv4) — UCEPROTECT, SpamCop, DroneBL (darmowe strefy).
  * Spamhaus zen/DQS nie jest obsługiwany (płatny dla ISP, decyzja 2026-10-15).
  *
  * Zapytanie: {odwrócone-IPv4}.{strefa}
  * Listed: A w 127.0.0.0/8 poza kodami błędów 127.255.255.*.
+ *
+ * Issue #456: checkIp() ma twardy deadline (mcs.dnsbl.checkTimeoutS, domyślnie 5 s) — request nie wisi
+ * przy wolnym resolverze; zapytania A przez współdzielony SilnikZapytan z timeoutem per zapytanie.
  */
 class DnsblClient
 {
@@ -28,21 +35,30 @@ class DnsblClient
 
     private int $rateLimitQps;
 
+    /** Twardy deadline całego checkIp (sekundy) — issue #456. */
+    private float $checkTimeoutS;
+
     private float $ostatnieZapytanieAt = 0.0;
+
+    /** Absolutny termin całego checkIp (microtime), null poza checkIp. */
+    private ?float $deadlineAt = null;
 
     /**
      * @param array<string, string>                 $strefy   id => hostname strefy
      * @param callable(string): list<string>|null   $resolver
+     * @param float                                  $checkTimeoutS deadline całego checkIp w sekundach
      */
     public function __construct(
         array $strefy = [],
         ?callable $resolver = null,
         int $rateLimitQps = 25,
         bool $uzyjDomyslnychGdyPuste = true,
+        float $checkTimeoutS = 5.0,
     ) {
         $this->strefy          = ($strefy === [] && $uzyjDomyslnychGdyPuste) ? self::domyslneStrefy() : $strefy;
         $this->resolver        = $resolver;
         $this->rateLimitQps    = max(1, $rateLimitQps);
+        $this->checkTimeoutS   = max(0.1, $checkTimeoutS);
     }
 
     public static function fromEnv(?callable $resolver = null): self
@@ -57,9 +73,18 @@ class DnsblClient
         if ($qps < 1) {
             $qps = 25;
         }
+        $checkTimeout = 5;
+        try {
+            $checkTimeout = \App\Libraries\OpcjeMcs::int('mcs.dnsbl.checkTimeoutS');
+        } catch (\Throwable) {
+            $checkTimeout = (int) env('mcs.dnsbl.checkTimeoutS', 5);
+        }
+        if ($checkTimeout < 1) {
+            $checkTimeout = 5;
+        }
 
         // Puste strefy z opcji = świadomie wyłączone list — nie przywracaj domyślnych.
-        return new self($strefy, $resolver, $qps, false);
+        return new self($strefy, $resolver, $qps, false, (float) $checkTimeout);
     }
 
     /**
@@ -185,6 +210,9 @@ class DnsblClient
     }
 
     /**
+     * @param float|null $timeoutS twardy deadline całego sprawdzania (sekundy, issue #456);
+     *                             null = domyślny z konstruktora/fromEnv (mcs.dnsbl.checkTimeoutS)
+     *
      * @return array{
      *   ok: bool,
      *   data: ?array{
@@ -194,7 +222,7 @@ class DnsblClient
      *   error: string
      * }
      */
-    public function checkIp(string $ip): array
+    public function checkIp(string $ip, ?float $timeoutS = null): array
     {
         $ip = trim($ip);
         if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
@@ -220,19 +248,37 @@ class DnsblClient
             ];
         }
 
-        foreach ($strefy as $id => $strefa) {
-            $wynik = $this->sprawdzStrefę($ip, $id, $strefa);
-            $listy[$id] = [
-                'listed' => $wynik['listed'],
-                'kody'   => $wynik['kody'],
-                'error'  => $wynik['error'],
-            ];
-            if ($wynik['error'] !== '') {
-                $bledy[] = $id . ': ' . $wynik['error'];
+        // Issue #456: twardy deadline całego checkIp — pozostałe strefy po terminie dostają błąd,
+        // wynik jest częściowy (jak przy błędzie pojedynczej strefy), nigdy „czysty” przez timeout.
+        $timeout          = max(0.1, $timeoutS ?? $this->checkTimeoutS);
+        $this->deadlineAt = microtime(true) + $timeout;
+        try {
+            foreach ($strefy as $id => $strefa) {
+                if (microtime(true) >= $this->deadlineAt) {
+                    $listy[$id] = [
+                        'listed' => false,
+                        'kody'   => [],
+                        'error'  => 'przekroczono limit czasu sprawdzania (' . (int) $timeout . ' s)',
+                    ];
+                    $bledy[]    = $id . ': ' . $listy[$id]['error'];
+
+                    continue;
+                }
+                $wynik = $this->sprawdzStrefę($ip, $id, $strefa);
+                $listy[$id] = [
+                    'listed' => $wynik['listed'],
+                    'kody'   => $wynik['kody'],
+                    'error'  => $wynik['error'],
+                ];
+                if ($wynik['error'] !== '') {
+                    $bledy[] = $id . ': ' . $wynik['error'];
+                }
+                if ($wynik['listed']) {
+                    $listedAny = true;
+                }
             }
-            if ($wynik['listed']) {
-                $listedAny = true;
-            }
+        } finally {
+            $this->deadlineAt = null;
         }
 
         // Częściowy sukces OK — pełna awaria tylko gdy żadna strefa nie odpowiedziała.
@@ -345,7 +391,16 @@ class DnsblClient
         $teraz     = microtime(true);
         $delta     = $teraz - $this->ostatnieZapytanieAt;
         if ($this->ostatnieZapytanieAt > 0 && $delta < $minOdstep) {
-            usleep((int) (($minOdstep - $delta) * 1_000_000));
+            $czekaj = $minOdstep - $delta;
+            // Issue #456: usleep tylko do deadline całego checkIp — nigdy nie blokujemy dłużej.
+            if ($this->deadlineAt !== null) {
+                $pozostalo = $this->deadlineAt - $teraz;
+                if ($pozostalo <= 0.0) {
+                    return;
+                }
+                $czekaj = min($czekaj, $pozostalo);
+            }
+            usleep((int) ($czekaj * 1_000_000));
         }
         $this->ostatnieZapytanieAt = microtime(true);
     }
@@ -371,23 +426,31 @@ class DnsblClient
             return $out;
         }
 
-        // NXDOMAIN / NODATA => [] (czysto). SERVFAIL / timeout / REFUSED => false (błąd).
-        // Błąd nigdy nie oznacza „czysto”: rzucamy wyjątek, sprawdzStrefę() ustawia error.
-        $rekordy = @dns_get_record($fqdn, DNS_A);
-        if ($rekordy === false) {
-            throw new \RuntimeException('DNS lookup failed (SERVFAIL/timeout)');
+        // Issue #456: własny resolver UDP z timeoutem (współdzielony z Dnsbl\SilnikZapytan — lokalny
+        // unbound wg mcs.dnsbl.skanerResolver), zamiast blokującego dns_get_record bez timeoutu.
+        // Timeout per zapytanie ograniczony też do pozostałego czasu całego checkIp (deadline).
+        // NXDOMAIN / NODATA => [] (czysto). SERVFAIL / timeout / REFUSED => wyjątek (błąd).
+        // Błąd nigdy nie oznacza „czysty”: rzucamy wyjątek, sprawdzStrefę() ustawia error.
+        $u       = Skaner::ustawienia();
+        $timeout = max(0.1, $u['timeout_ms'] / 1000);
+        if ($this->deadlineAt !== null) {
+            $timeout = min($timeout, max(0.1, $this->deadlineAt - microtime(true)));
         }
-        if ($rekordy === []) {
+        $silnik  = new SilnikZapytan($u['resolver'], 53, (float) $u['qps'], 1, $timeout, $u['retry']);
+        $wyniki  = $silnik->wykonaj([
+            ['klucz' => $fqdn, 'grupa' => 'dnsbl-www', 'nazwa' => $fqdn, 'typ' => DnsPakiet::TYP_A],
+        ]);
+        $w = $wyniki[$fqdn] ?? SilnikZapytan::wynik('blad', null, [], [], 'brak wyniku');
+        if ($w['status'] !== 'odp' || $w['rcode'] === null) {
+            throw new \RuntimeException('DNS lookup failed (' . ($w['blad'] !== '' ? $w['blad'] : $w['status']) . ')');
+        }
+        if ($w['rcode'] === DnsPakiet::RCODE_NXDOMAIN) {
             return [];
         }
-
-        $out = [];
-        foreach ($rekordy as $r) {
-            if (is_array($r) && isset($r['ip']) && is_string($r['ip']) && $r['ip'] !== '') {
-                $out[] = $r['ip'];
-            }
+        if ($w['rcode'] !== DnsPakiet::RCODE_NOERROR) {
+            throw new \RuntimeException('DNS rcode ' . $w['rcode']);
         }
 
-        return $out;
+        return $w['a'];
     }
 }

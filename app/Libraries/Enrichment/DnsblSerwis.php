@@ -226,12 +226,17 @@ class DnsblSerwis extends EnrichmentSerwisBaza
     {
         $zakres = $zakres ?? $this->wybierzZakres();
         $ips    = $this->zbierzIpDoSkanu($zakres);
+
+        // Issue #458: jeden zbiorczy odczyt cache (WHERE ip IN (…) partiami po 500, jak znajdzWiele)
+        // zamiast per-IP SELECT w pętli; mapa idzie przez kontekst do zapiszWynik/poprzednieListy.
+        $cacheMapa = $this->enrichment->znajdzWiele($ips);
+
         $listed = 0;
         $inc    = 0;
         $ok     = 0;
 
         foreach ($ips as $ip) {
-            $wynik = $this->sprawdz($ip, true, $zakres, $importId);
+            $wynik = $this->szkieletSprawdz($ip, true, ['zakres' => $zakres, 'import_id' => $importId, 'cache_mapa' => $cacheMapa]);
             if (! $wynik['ok']) {
                 continue;
             }
@@ -293,9 +298,9 @@ class DnsblSerwis extends EnrichmentSerwisBaza
             'listed_any' => (bool) ($json['listed_any'] ?? false),
             'listy'      => is_array($json['listy'] ?? null) ? $json['listy'] : [],
         ];
-        $inc = $this->zapiszWynik($ip, $data, $this->trybFixture(), $zakres, $importId);
+        $zapis = $this->zapiszWynik($ip, $data, $this->trybFixture(), $zakres, $importId, $kontekst['cache_mapa'] ?? null);
 
-        return $this->odpowiedz(true, false, $this->trybFixture(), null, $ip, $this->wierszDoWyniku($this->enrichment->znajdzPoIp($ip) ?? []), ['incydenty' => $inc]);
+        return $this->odpowiedz(true, false, $this->trybFixture(), null, $ip, $zapis['wynik'], ['incydenty' => $zapis['inc']]);
     }
 
     /**
@@ -313,18 +318,22 @@ class DnsblSerwis extends EnrichmentSerwisBaza
             return $this->odpowiedz(false, false, $this->trybZrodla(), $resp['error'] !== '' ? $resp['error'] : 'Błąd DNS DNSBL', $ip, null);
         }
 
-        $inc = $this->zapiszWynik($ip, $resp['data'], $this->trybZrodla(), $zakres, $importId);
+        $zapis = $this->zapiszWynik($ip, $resp['data'], $this->trybZrodla(), $zakres, $importId, $kontekst['cache_mapa'] ?? null);
 
-        return $this->odpowiedz(true, false, $this->trybZrodla(), null, $ip, $this->wierszDoWyniku($this->enrichment->znajdzPoIp($ip) ?? []), ['incydenty' => $inc]);
+        return $this->odpowiedz(true, false, $this->trybZrodla(), null, $ip, $zapis['wynik'], ['incydenty' => $zapis['inc']]);
     }
 
     /**
      * @param array{listed_any: bool, listy: array<string, mixed>} $data
      */
-    private function zapiszWynik(string $ip, array $data, string $zrodloDanych, string $zakres, ?int $importId): int
+    /**
+     * @return array{wynik: array<string, mixed>, inc: int} wynik budowany lokalnie z payloadu upsertu
+     *                                                        (bez re-SELECT po zapisie — issue #458)
+     */
+    private function zapiszWynik(string $ip, array $data, string $zrodloDanych, string $zakres, ?int $importId, ?array $cacheMapa = null): array
     {
         $teraz      = gmdate('Y-m-d H:i:sP');
-        $poprzednie = $this->poprzednieListy($ip);
+        $poprzednie = $this->poprzednieListy($ip, $cacheMapa);
         $listy      = [];
         $listedAny  = false;
         foreach ($data['listy'] as $id => $info) {
@@ -348,14 +357,15 @@ class DnsblSerwis extends EnrichmentSerwisBaza
             $listy[(string) $id] = $wpis;
         }
 
-        $this->enrichment->upsertDlaIp($ip, [
+        $payload = [
             'listed_any'    => $listedAny || (bool) ($data['listed_any'] ?? false),
             'listy_json'    => json_encode($listy, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'raw_json'      => json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'zrodlo_danych' => $zrodloDanych,
             'zakres_skanu'  => $zakres,
             'checked_at'    => $teraz,
-        ]);
+        ];
+        $this->enrichment->upsertDlaIp($ip, $payload);
 
         $incydenty = 0;
         foreach ($listy as $listaId => $info) {
@@ -369,7 +379,7 @@ class DnsblSerwis extends EnrichmentSerwisBaza
             ) ? 1 : 0;
         }
 
-        return $incydenty;
+        return ['wynik' => $this->wierszDoWyniku($payload + ['ip' => $ip]), 'inc' => $incydenty];
     }
 
     /**
@@ -467,9 +477,10 @@ class DnsblSerwis extends EnrichmentSerwisBaza
      *
      * @return array<string, mixed>
      */
-    private function poprzednieListy(string $ip): array
+    private function poprzednieListy(string $ip, ?array $cacheMapa = null): array
     {
-        $ist = $this->enrichment->znajdzPoIp($ip);
+        // Issue #458: przy skanie użyj mapy z batchowego odczytu; per-IP SELECT tylko poza skanem.
+        $ist = $cacheMapa !== null ? ($cacheMapa[$ip] ?? null) : $this->enrichment->znajdzPoIp($ip);
         if (! is_array($ist)) {
             return [];
         }
