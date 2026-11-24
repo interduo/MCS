@@ -111,6 +111,22 @@ final class ThreatfoxSerwisTest extends CIUnitTestCase
         $this->assertSame($this->teraz + 6 * 3600, $nastepne);
     }
 
+    public function testDuplikatyIocWjednejOdpowiedziSaDedupowane(): void
+    {
+        // ThreatFox zwraca ten sam ioc wielokrotnie (różne threat_type) — UNIQUE(ioc) w tabeli.
+        $this->ustawData([
+            ['id' => '1', 'ioc' => '8.8.8.8', 'ioc_type' => 'ip', 'threat_type' => 'scanner'],
+            ['id' => '2', 'ioc' => '8.8.8.8', 'ioc_type' => 'ip', 'threat_type' => 'botnet_c2'],
+            ['id' => '3', 'ioc' => 'evil.example.com', 'ioc_type' => 'domain', 'threat_type' => 'phishing'],
+        ]);
+
+        $w = $this->serwis()->uruchom();
+
+        $this->assertSame('ok', $w['status'], $w['msg']);
+        $this->assertSame(2, $w['rekordy']);
+        $this->assertSame(2, $this->db->table('mcs_threatfox_ioc')->countAllResults());
+    }
+
     public function testNoResultsToSukcesZCzystym(): void
     {
         $this->odpowiedz = ['ok' => true, 'http_code' => 200, 'body' => '{"query_status":"no_results"}', 'error' => '', 'retry_after' => 0];

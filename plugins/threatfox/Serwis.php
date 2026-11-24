@@ -132,6 +132,13 @@ class Serwis
             $sha     = hash('sha256', $res['body']);
             $rekordy = $this->parser->parsuj($res['body']);
 
+            // ThreatFox zwraca ten sam ioc wielokrotnie (różne threat_type/id) — UNIQUE(ioc): dedup, pierwszy wygrywa.
+            $unikalne = [];
+            foreach ($rekordy as $r) {
+                $unikalne[(string) $r['ioc']] ??= $r;
+            }
+            $rekordy = array_values($unikalne);
+
             $nasze = array_values(array_filter(
                 array_map(static fn ($c) => Dopasowanie::normalizujCidr((string) $c), ($this->naszeCidry)()),
                 static fn ($c) => $c !== null,
