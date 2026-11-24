@@ -11,6 +11,12 @@ final class Klient
 
     public const USER_AGENT = 'MCS/1.0 (+https://github.com/kyob/MCS)';
 
+    /** Twardy limit całego pobrania (s); zrzut ma ~20 MB, a abuse.ch potrafi oddawać ~250 KB/s. */
+    public const MAKS_CZAS = 600;
+
+    /** Poniżej tej prędkości (B/s) przez $timeout sekund transfer uznajemy za zawieszony. */
+    public const MIN_PREDKOSC = 1024;
+
     /** @var (callable(string, int): array{ok: bool, http_code: int, body: string, error: string})|null */
     private $http;
 
@@ -88,8 +94,10 @@ final class Klient
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_ENCODING       => '',
-            CURLOPT_CONNECTTIMEOUT => min(15, $this->timeout),
-            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT  => min(15, $this->timeout),
+            CURLOPT_TIMEOUT         => max(self::MAKS_CZAS, $this->timeout),
+            CURLOPT_LOW_SPEED_LIMIT => self::MIN_PREDKOSC,
+            CURLOPT_LOW_SPEED_TIME  => $this->timeout,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_HTTPHEADER     => ['Accept: text/csv, text/plain'],
         ]);
