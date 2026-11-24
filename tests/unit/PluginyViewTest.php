@@ -255,4 +255,80 @@ final class PluginyViewTest extends CIUnitTestCase
         $this->assertStringContainsString('2026-09-11 20:00:30', $html);
         $this->assertStringNotContainsString('18:00:00+00', $html);
     }
+
+    /**
+     * #439: licznik „Wyniki X–Y z Z” jak w kolejka/incydenty; bez pagera przy jednej stronie.
+     */
+    public function testHistoriaImportowPokazujeLicznikWynikowBezPagera(): void
+    {
+        $html = view('admin/pluginy/historia_importow', [
+            'title'       => 'Historia importów — MCS',
+            'navAktywny'  => 'pluginy',
+            'email'       => 'ops@example.com',
+            'rola'        => 'operator',
+            'zrodla'      => [],
+            'filtrZrodlo' => '',
+            'filtrStatus' => '',
+            'filtrQ'      => '',
+            'filtrOd'     => '',
+            'filtrDo'     => '',
+            'pager'       => null,
+            'importy'     => [$this->wierszImportu(8)],
+        ]);
+
+        $this->assertStringContainsString('Wyniki 1–1 z 1', $html);
+        // jedna strona → pager nie jest renderowany
+        $this->assertStringNotContainsString('class="pagination', $html);
+    }
+
+    /**
+     * #439: przy wielu stronach licznik liczy z total/p stride, a pager się renderuje.
+     */
+    public function testHistoriaImportowLicznikIPagerPrzyWieluStronach(): void
+    {
+        $pager = service('pager');
+        $pager->store('default', 2, 25, 60);
+
+        $importy = [];
+        for ($i = 60; $i >= 36; $i--) {
+            $importy[] = $this->wierszImportu($i);
+        }
+
+        $html = view('admin/pluginy/historia_importow', [
+            'title'       => 'Historia importów — MCS',
+            'navAktywny'  => 'pluginy',
+            'email'       => 'ops@example.com',
+            'rola'        => 'operator',
+            'zrodla'      => [],
+            'filtrZrodlo' => '',
+            'filtrStatus' => '',
+            'filtrQ'      => '',
+            'filtrOd'     => '',
+            'filtrDo'     => '',
+            'pager'       => $pager,
+            'importy'     => $importy,
+        ]);
+
+        // strona 2 z 25 na stronę, razem 60 → 26–50 z 60
+        $this->assertStringContainsString('Wyniki 26–50 z 60', $html);
+        $this->assertStringContainsString('class="pagination', $html);
+        $this->assertStringContainsString('page=3', $html);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function wierszImportu(int $id): array
+    {
+        return [
+            'id'            => $id,
+            'zrodlo'        => 'snds',
+            'status'        => 'ok',
+            'rozpoczeto_at' => '2026-09-11 18:00:00+00',
+            'zakonczono_at' => '2026-09-11 18:00:30+00',
+            'blad_text'     => null,
+            'checksum'      => 'abc' . $id,
+            'id_wiadomosci' => 'msg-' . $id,
+        ];
+    }
 }

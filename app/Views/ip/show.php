@@ -130,7 +130,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                 <div class="alert alert-danger border-0 rounded-3 py-2 mb-2" id="lms-komunikat" role="alert" hidden></div>
             <?php endif; ?>
 
-            <div id="lms-wynik" class="mb-2" <?= empty($lmsCache) ? 'hidden' : '' ?>>
+            <div id="lms-wynik" class="mb-2" aria-live="polite" <?= empty($lmsCache) ? 'hidden' : '' ?>>
                 <div class="d-flex flex-wrap gap-3 align-items-baseline" id="lms-trafiony-box" <?= $lmsTrafiony ? '' : 'hidden' ?>>
                     <div>
                         <div class="small text-body-secondary">Komputer</div>
@@ -156,12 +156,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <button type="button" class="btn btn-primary btn-sm" id="lms-sprawdz"
                     data-url="<?= site_url('ip/' . $ip . '/enrichment/lms') ?>" data-metoda="post"
-                    <?= $lmsDisabled ? 'disabled' : '' ?>>
+                    <?= $lmsDisabled ? 'disabled title="Brak konfiguracji LMS — ustaw mcs.lms.baseUrl+mapToken w .env"' : '' ?>>
                     Sprawdź w LMS
                 </button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="lms-force"
                     data-url="<?= site_url('ip/' . $ip . '/enrichment/lms') ?>" data-metoda="post" data-force="1"
-                    <?= $lmsDisabled ? 'disabled' : '' ?>>
+                    <?= $lmsDisabled ? 'disabled title="Brak konfiguracji LMS — ustaw mcs.lms.baseUrl+mapToken w .env"' : '' ?>>
                     Odśwież (force)
                 </button>
             </div>
@@ -311,12 +311,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-primary" id="abuseipdb-sprawdz"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/abuseipdb') ?>" data-metoda="post"
-                <?= (! empty($abuseipdbKomunikat) && ($abuseipdbTryb ?? '') === 'brak_klucza') ? 'disabled' : '' ?>>
+                <?= (! empty($abuseipdbKomunikat) && ($abuseipdbTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak klucza mcs.abuseipdb.apiKey — ustaw w .env albo mcs.abuseipdb.fixturePath do dry-run"' : '' ?>>
                 Sprawdź AbuseIPDB
             </button>
             <button type="button" class="btn btn-outline-secondary" id="abuseipdb-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/abuseipdb') ?>" data-metoda="post" data-force="1"
-                <?= (! empty($abuseipdbKomunikat) && ($abuseipdbTryb ?? '') === 'brak_klucza') ? 'disabled' : '' ?>>
+                <?= (! empty($abuseipdbKomunikat) && ($abuseipdbTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak klucza mcs.abuseipdb.apiKey — ustaw w .env albo mcs.abuseipdb.fixturePath do dry-run"' : '' ?>>
                 Odśwież (force)
             </button>
             <span class="small text-body-secondary" id="abuseipdb-status">
@@ -324,7 +324,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             </span>
         </div>
 
-        <div id="abuseipdb-wynik" class="enrichment-wynik" <?= empty($abuseipdbCache) ? 'hidden' : '' ?>>
+        <div id="abuseipdb-wynik" class="enrichment-wynik" aria-live="polite" <?= empty($abuseipdbCache) ? 'hidden' : '' ?>>
             <?php $ab = is_array($abuseipdbCache ?? null) ? $abuseipdbCache : []; ?>
             <dl class="row mb-0 small">
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Score</dt>
@@ -369,12 +369,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-primary" id="ismalicious-sprawdz"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/ismalicious') ?>" data-metoda="post"
-                <?= (! empty($ismaliciousKomunikat) && ($ismaliciousTryb ?? '') === 'brak_klucza') ? 'disabled' : '' ?>>
+                <?= (! empty($ismaliciousKomunikat) && ($ismaliciousTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak credentials isMalicious (mcs.ismalicious.apiKey/apiSecret) — ustaw w .env"' : '' ?>>
                 Sprawdź isMalicious
             </button>
             <button type="button" class="btn btn-outline-secondary" id="ismalicious-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/ismalicious') ?>" data-metoda="post" data-force="1"
-                <?= (! empty($ismaliciousKomunikat) && ($ismaliciousTryb ?? '') === 'brak_klucza') ? 'disabled' : '' ?>>
+                <?= (! empty($ismaliciousKomunikat) && ($ismaliciousTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak credentials isMalicious (mcs.ismalicious.apiKey/apiSecret) — ustaw w .env"' : '' ?>>
                 Odśwież (force)
             </button>
             <span class="small text-body-secondary" id="ismalicious-status">
@@ -382,7 +382,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             </span>
         </div>
 
-        <div id="ismalicious-wynik" class="enrichment-wynik" <?= empty($ismaliciousCache) ? 'hidden' : '' ?>>
+        <div id="ismalicious-wynik" class="enrichment-wynik" aria-live="polite" <?= empty($ismaliciousCache) ? 'hidden' : '' ?>>
             <?php $im = is_array($ismaliciousCache ?? null) ? $ismaliciousCache : []; ?>
             <?php
             $imMal = $im['malicious'] ?? null;
@@ -416,8 +416,6 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
     </div>
 </div>
 
-</div>
-
 <div class="card border-0 shadow-sm rounded-3 mt-4" id="panel-greynoise">
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
@@ -440,12 +438,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-primary" id="greynoise-sprawdz"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/greynoise') ?>" data-metoda="post"
-                <?= (! empty($greynoiseKomunikat) && ($greynoiseTryb ?? '') === 'brak_klucza') ? 'disabled' : '' ?>>
+                <?= (! empty($greynoiseKomunikat) && ($greynoiseTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak klucza GreyNoise — ustaw w Wtyczki → GreyNoise → Klucz"' : '' ?>>
                 Sprawdź GreyNoise
             </button>
             <button type="button" class="btn btn-outline-secondary" id="greynoise-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/greynoise') ?>" data-metoda="post" data-force="1"
-                <?= (! empty($greynoiseKomunikat) && ($greynoiseTryb ?? '') === 'brak_klucza') ? 'disabled' : '' ?>>
+                <?= (! empty($greynoiseKomunikat) && ($greynoiseTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak klucza GreyNoise — ustaw w Wtyczki → GreyNoise → Klucz"' : '' ?>>
                 Odśwież (force)
             </button>
             <span class="small text-body-secondary" id="greynoise-status">
@@ -454,7 +452,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </div>
 
         <?php $gn = is_array($greynoiseCache ?? null) ? $greynoiseCache : []; ?>
-        <div id="greynoise-wynik" class="enrichment-wynik" <?= $gn === [] ? 'hidden' : '' ?>>
+        <div id="greynoise-wynik" class="enrichment-wynik" aria-live="polite" <?= $gn === [] ? 'hidden' : '' ?>>
             <dl class="row mb-0 small">
                 <dt class="col-sm-3 col-md-2 text-body-secondary">Klasyfikacja</dt>
                 <dd class="col-sm-9 col-md-10" id="gn-class"><?= esc((string) (($gn['classification'] ?? '') !== '' ? $gn['classification'] : '—')) ?></dd>
@@ -506,6 +504,9 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         $spamratsIpv6 = filter_var((string) $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
         $spamratsDisabled = $spamratsIpv6
             || (! empty($spamratsKomunikat) && ($spamratsTryb ?? '') === 'brak_klucza');
+        $spamratsTitle = $spamratsIpv6
+            ? 'SpamRats DNSBL obsługuje tylko IPv4'
+            : 'Brak klucza mcs.spamrats.apiKey — ustaw w .env albo fixturePath';
         ?>
         <?php if ($spamratsIpv6): ?>
             <div class="alert alert-warning border-0 rounded-3 py-2" role="status">
@@ -516,12 +517,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-primary" id="spamrats-sprawdz"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/spamrats') ?>" data-metoda="post"
-                <?= $spamratsDisabled ? 'disabled' : '' ?>>
+                <?= $spamratsDisabled ? 'disabled title="' . $spamratsTitle . '"' : '' ?>>
                 Sprawdź SpamRats
             </button>
             <button type="button" class="btn btn-outline-secondary" id="spamrats-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/spamrats') ?>" data-metoda="post" data-force="1"
-                <?= $spamratsDisabled ? 'disabled' : '' ?>>
+                <?= $spamratsDisabled ? 'disabled title="' . $spamratsTitle . '"' : '' ?>>
                 Odśwież (force)
             </button>
             <a class="btn btn-outline-secondary" href="https://www.spamrats.com/bl?<?= rawurlencode((string) $ip) ?>"
@@ -533,7 +534,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             </span>
         </div>
 
-        <div id="spamrats-wynik" class="enrichment-wynik" <?= empty($spamratsCache) ? 'hidden' : '' ?>>
+        <div id="spamrats-wynik" class="enrichment-wynik" aria-live="polite" <?= empty($spamratsCache) ? 'hidden' : '' ?>>
             <?php $sr = is_array($spamratsCache ?? null) ? $spamratsCache : []; ?>
             <?php
             $srListed = $sr['listed'] ?? null;
@@ -615,12 +616,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-primary" id="dnsbl-sprawdz"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/dnsbl') ?>" data-metoda="post"
-                <?= $dnsblIpv6 ? 'disabled' : '' ?>>
+                <?= $dnsblIpv6 ? 'disabled title="DNSBL w MCS obsługuje tylko IPv4"' : '' ?>
                 Sprawdź DNSBL
             </button>
             <button type="button" class="btn btn-outline-secondary" id="dnsbl-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/dnsbl') ?>" data-metoda="post" data-force="1"
-                <?= $dnsblIpv6 ? 'disabled' : '' ?>>
+                <?= $dnsblIpv6 ? 'disabled title="DNSBL w MCS obsługuje tylko IPv4"' : '' ?>
                 Odśwież (force)
             </button>
             <a class="btn btn-outline-secondary" href="<?= site_url('dashboard/dnsbl') ?>">
@@ -671,7 +672,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <?php endif; ?>
         </div>
 
-        <div id="dnsbl-wynik" class="enrichment-wynik" <?= empty($dnsblCache) ? 'hidden' : '' ?>>
+        <div id="dnsbl-wynik" class="enrichment-wynik" aria-live="polite" <?= empty($dnsblCache) ? 'hidden' : '' ?>>
             <?php $dbCache = is_array($dnsblCache ?? null) ? $dnsblCache : []; ?>
             <?php
             $dbListed = $dbCache['listed_any'] ?? null;
@@ -771,6 +772,22 @@ window.mcsZapytaj = function (btn, url) {
         return r;
     });
 };
+// #435: stan ładowania przycisku enrichment — spinner + tekst „Sprawdzam…” + aria-busy.
+window.mcsPrzyciskZajety = function (btn, zajety) {
+    if (zajety) {
+        if (!btn.dataset.staryHtml) {
+            btn.dataset.staryHtml = btn.innerHTML;
+        }
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Sprawdzam…';
+    } else {
+        btn.removeAttribute('aria-busy');
+        if (btn.dataset.staryHtml) {
+            btn.innerHTML = btn.dataset.staryHtml;
+            delete btn.dataset.staryHtml;
+        }
+    }
+};
 </script>
 
 <script>
@@ -812,6 +829,7 @@ window.mcsZapytaj = function (btn, url) {
         var url = btn.getAttribute('data-url');
         if (!url) return;
         btn.disabled = true;
+        window.mcsPrzyciskZajety(btn, true);
         window.mcsZapytaj(btn, url)
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (x) {
@@ -824,7 +842,7 @@ window.mcsZapytaj = function (btn, url) {
                 pokazIsm(x.j);
             })
             .catch(function () { pokazIsmBlad('Nie udało się połączyć z MCS.'); })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () { btn.disabled = false; window.mcsPrzyciskZajety(btn, false); });
     }
     ['ismalicious-sprawdz', 'ismalicious-force'].forEach(function (id) {
         var b = document.getElementById(id);
@@ -885,6 +903,7 @@ window.mcsZapytaj = function (btn, url) {
         var url = btn.getAttribute('data-url');
         if (!url) return;
         btn.disabled = true;
+        window.mcsPrzyciskZajety(btn, true);
         window.mcsZapytaj(btn, url)
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (x) {
@@ -897,7 +916,7 @@ window.mcsZapytaj = function (btn, url) {
                 pokazGn(x.j);
             })
             .catch(function () { pokazGnBlad('Nie udało się połączyć z MCS.'); })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () { btn.disabled = false; window.mcsPrzyciskZajety(btn, false); });
     }
     ['greynoise-sprawdz', 'greynoise-force'].forEach(function (id) {
         var b = document.getElementById(id);
@@ -962,6 +981,7 @@ window.mcsZapytaj = function (btn, url) {
         var url = btn.getAttribute('data-url');
         if (!url) return;
         btn.disabled = true;
+        window.mcsPrzyciskZajety(btn, true);
         window.mcsZapytaj(btn, url)
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (x) {
@@ -974,7 +994,7 @@ window.mcsZapytaj = function (btn, url) {
                 pokazSr(x.j);
             })
             .catch(function () { pokazSrBlad('Nie udało się połączyć z MCS.'); })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () { btn.disabled = false; window.mcsPrzyciskZajety(btn, false); });
     }
     ['spamrats-sprawdz', 'spamrats-force'].forEach(function (id) {
         var b = document.getElementById(id);
@@ -1047,6 +1067,7 @@ window.mcsZapytaj = function (btn, url) {
         var url = btn.getAttribute('data-url');
         if (!url) return;
         btn.disabled = true;
+        window.mcsPrzyciskZajety(btn, true);
         window.mcsZapytaj(btn, url)
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (x) {
@@ -1059,7 +1080,7 @@ window.mcsZapytaj = function (btn, url) {
                 pokazDnsbl(x.j);
             })
             .catch(function () { pokazDnsblBlad('Nie udało się połączyć z MCS.'); })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () { btn.disabled = false; window.mcsPrzyciskZajety(btn, false); });
     }
     ['dnsbl-sprawdz', 'dnsbl-force'].forEach(function (id) {
         var b = document.getElementById(id);
@@ -1126,6 +1147,7 @@ window.mcsZapytaj = function (btn, url) {
         var url = btn.getAttribute('data-url');
         if (!url) return;
         btn.disabled = true;
+        window.mcsPrzyciskZajety(btn, true);
         window.mcsZapytaj(btn, url)
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (x) {
@@ -1138,7 +1160,7 @@ window.mcsZapytaj = function (btn, url) {
                 pokazLms(x.j);
             })
             .catch(function () { pokazLmsBlad('Nie udało się połączyć z MCS.'); })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () { btn.disabled = false; window.mcsPrzyciskZajety(btn, false); });
     }
     ['lms-sprawdz', 'lms-force'].forEach(function (id) {
         var b = document.getElementById(id);
@@ -1183,6 +1205,7 @@ window.mcsZapytaj = function (btn, url) {
         var url = btn.getAttribute('data-url');
         if (!url) return;
         btn.disabled = true;
+        window.mcsPrzyciskZajety(btn, true);
         window.mcsZapytaj(btn, url)
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (x) {
@@ -1195,7 +1218,7 @@ window.mcsZapytaj = function (btn, url) {
                 pokazWynik(x.j);
             })
             .catch(function () { pokazBlad('Nie udało się połączyć z MCS.'); })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () { btn.disabled = false; window.mcsPrzyciskZajety(btn, false); });
     }
     ['abuseipdb-sprawdz', 'abuseipdb-force'].forEach(function (id) {
         var b = document.getElementById(id);

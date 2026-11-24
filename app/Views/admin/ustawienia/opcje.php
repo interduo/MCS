@@ -64,6 +64,9 @@ $etykietaZrodla = static function (string $zrodlo): array {
                     [$zrTekst, $zrKlasa] = $etykietaZrodla((string) $o['zrodlo']);
                     $typ = rtrim((string) $o['typ'], '?');
                     $wartosc = array_key_exists((string) $klucz, $opcjaOld) ? (string) $opcjaOld[(string) $klucz] : (string) $o['wartosc'];
+                    // #437: błąd pola = is-invalid + aria-invalid + aria-describedby wskazujące na komunikat pod polem
+                    $maBlad = isset($bledy[$klucz]);
+                    $idBlad  = $id . '_blad';
                     ?>
                     <div class="row g-2 align-items-center mb-2">
                         <label class="col-md-5 col-form-label" for="<?= esc($id, 'attr') ?>">
@@ -75,19 +78,24 @@ $etykietaZrodla = static function (string $zrodlo): array {
                         </label>
                         <div class="col-md-3">
                             <?php if ($typ === 'enum'): ?>
-                                <select class="form-select<?= isset($bledy[$klucz]) ? ' is-invalid' : '' ?>"
-                                        id="<?= esc($id, 'attr') ?>" name="opcja[<?= esc((string) $klucz, 'attr') ?>]">
+                                <select class="form-select<?= $maBlad ? ' is-invalid' : '' ?>"
+                                        id="<?= esc($id, 'attr') ?>" name="opcja[<?= esc((string) $klucz, 'attr') ?>]"
+                                        <?= $maBlad ? 'aria-invalid="true" aria-describedby="' . esc($idBlad, 'attr') . '"' : '' ?>>
                                     <?php foreach ($o['opcje'] ?? [] as $opt): ?>
                                         <option value="<?= esc((string) $opt, 'attr') ?>"<?= (string) $opt === $wartosc ? ' selected' : '' ?>><?= esc((string) $opt) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             <?php else: ?>
-                                <input class="form-control<?= isset($bledy[$klucz]) ? ' is-invalid' : '' ?>"
+                                <input class="form-control<?= $maBlad ? ' is-invalid' : '' ?>"
                                        id="<?= esc($id, 'attr') ?>" name="opcja[<?= esc((string) $klucz, 'attr') ?>]"
                                        type="<?= $typ === 'email' ? 'email' : ($typ === 'int' ? 'number' : 'text') ?>"
                                        <?php if ($typ === 'int' && isset($o['min'])): ?>min="<?= (int) $o['min'] ?>"<?php endif; ?>
                                        <?php if ($typ === 'int' && isset($o['max'])): ?>max="<?= (int) $o['max'] ?>"<?php endif; ?>
-                                       value="<?= esc($wartosc, 'attr') ?>">
+                                       value="<?= esc($wartosc, 'attr') ?>"
+                                       <?= $maBlad ? 'aria-invalid="true" aria-describedby="' . esc($idBlad, 'attr') . '"' : '' ?>>
+                            <?php endif; ?>
+                            <?php if ($maBlad): ?>
+                                <div class="invalid-feedback" id="<?= esc($idBlad, 'attr') ?>" role="alert"><?= esc((string) $bledy[$klucz]) ?></div>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-4 small">

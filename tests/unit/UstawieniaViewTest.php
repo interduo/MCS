@@ -189,4 +189,61 @@ final class UstawieniaViewTest extends CIUnitTestCase
         // select enum: old 'b' zaznaczone zamiast 'a'
         $this->assertMatchesRegularExpression('/<option value="b" selected>/', $html);
     }
+
+    /**
+     * #437: każde błędne pole ma is-invalid + aria-invalid + aria-describedby
+     * i własny widoczny komunikat invalid-feedback (role=alert); alert zbiorczy zostaje.
+     */
+    public function testOpcjeBlednePoleMaInvalidFeedbackIAria(): void
+    {
+        $html = view('admin/ustawienia/opcje', [
+            'title'      => 'Opcje strojenia — MCS',
+            'navAktywny' => 'ustawienia',
+            'email'      => 'admin@example.com',
+            'rola'       => 'admin',
+            'komunikat'  => null,
+            'blad'       => 'Nie zapisano opcji — popraw błędy.',
+            'bledy'      => [
+                'mcs.test.int'  => 'poza zakresem',
+                'mcs.test.enum' => 'zła wartość',
+            ],
+            'grupy'      => [
+                'Test' => [
+                    'mcs.test.int'  => ['etykieta' => 'Test int', 'zrodlo' => 'db', 'typ' => 'int',
+                        'wartosc' => '10', 'domyslna' => '5', 'min' => 1, 'max' => 100],
+                    'mcs.test.enum' => ['etykieta' => 'Test enum', 'zrodlo' => 'env', 'typ' => 'enum',
+                        'wartosc' => 'a', 'domyslna' => 'a', 'opcje' => ['a', 'b']],
+                    'mcs.test.ok'   => ['etykieta' => 'Test ok', 'zrodlo' => 'domyslna', 'typ' => 'text',
+                        'wartosc' => 'x', 'domyslna' => 'x'],
+                ],
+            ],
+        ]);
+
+        // input int: is-invalid + ARIA + komunikat powiązany aria-describedby
+        $this->assertMatchesRegularExpression(
+            '/<input[^>]*class="form-control is-invalid"[^>]*aria-invalid="true" aria-describedby="opcja_mcs_test_int_blad"[^>]*>/s',
+            $html,
+        );
+        $this->assertStringContainsString(
+            '<div class="invalid-feedback" id="opcja_mcs_test_int_blad" role="alert">poza zakresem</div>',
+            $html,
+        );
+        // select enum: to samo
+        $this->assertMatchesRegularExpression(
+            '/<select[^>]*class="form-select is-invalid"[^>]*aria-invalid="true" aria-describedby="opcja_mcs_test_enum_blad"[^>]*>/s',
+            $html,
+        );
+        $this->assertStringContainsString(
+            '<div class="invalid-feedback" id="opcja_mcs_test_enum_blad" role="alert">zła wartość</div>',
+            $html,
+        );
+        // pole bez błędu: bez is-invalid i bez aria-invalid
+        $this->assertMatchesRegularExpression(
+            '/<input[^>]*id="opcja_mcs_test_ok"(?![^>]*aria-invalid)[^>]*>/s',
+            $html,
+        );
+        $this->assertStringNotContainsString('opcja_mcs_test_ok_blad', $html);
+        // alert zbiorczy nadal podsumowuje błędy
+        $this->assertMatchesRegularExpression('/<div class="alert alert-danger[^"]*" role="alert">.*poza zakresem.*zła wartość.*<\/div>/s', $html);
+    }
 }

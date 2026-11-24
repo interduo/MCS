@@ -180,8 +180,8 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
     </div>
 </div>
 
-<?php if ($sumaObs > 0): ?>
 <section class="mb-4" aria-label="Trendy dzienne">
+    <?php if ($sumaObs > 0): ?>
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
             <h2 class="h5 mb-1">Trendy dzienne z incydentów</h2>
@@ -346,7 +346,18 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
             </div>
         </div>
     </div>
+    <?php else: ?>
+        <?php // #438: pusty stan sekcji, gdy w oknie nie ma żadnych incydentów (spójnie z kolejka.php) ?>
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-body pt-3">
+                <h2 class="h5 mb-1">Trendy dzienne z incydentów</h2>
+                <p class="text-body-secondary mb-0">
+                    Brak incydentów w oknie <?= (int) $okno ?> <?= (int) $okno === 1 ? 'dnia' : 'dni' ?> —
+                    gdy coś wpłynie, pojawi się tu rozkład dzienny.
+                </p>
+            </div>
+        </div>
+    <?php endif; ?>
 </section>
-<?php endif; ?>
 
 <?= $this->endSection() ?>

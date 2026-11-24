@@ -39,7 +39,10 @@ final class DashboardViewTest extends CIUnitTestCase
         $this->assertStringNotContainsString('dashboard/eksport.csv', $html);
     }
 
-    public function testWidokBezObserwacjiNiePokazujePustegoWykresu(): void
+    /**
+     * #438: sekcja „Trendy dzienne” przy zerowych danych pokazuje pusty stan zamiast znikać.
+     */
+    public function testWidokBezObserwacjiPokazujePustyStanTrendow(): void
     {
         $html = view('dashboard/index', $this->danePrzegladu([
             'kpi' => [
@@ -59,7 +62,12 @@ final class DashboardViewTest extends CIUnitTestCase
             ],
         ]));
 
-        $this->assertStringNotContainsString('Trendy dzienne z incydentów', $html);
+        // sekcja zostaje, z komunikatem pustego stanu
+        $this->assertStringContainsString('aria-label="Trendy dzienne"', $html);
+        $this->assertStringContainsString('Trendy dzienne z incydentów', $html);
+        $this->assertStringContainsString('Brak incydentów w oknie 7 dni', $html);
+        // ale bez pustego wykresu/tabeli
+        $this->assertStringNotContainsString('<details class="mcs-dzien-zrodla"', $html);
         $this->assertStringNotContainsString('Trendy dzienne z obserwacji', $html);
         $this->assertStringContainsString('dashboard/problematyczne-ip', $html);
     }

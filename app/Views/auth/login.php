@@ -49,7 +49,7 @@
                     <label class="form-label" for="email">E-mail</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-envelope" aria-hidden="true"></i></span>
-                        <input class="form-control" id="email" type="text" name="email" inputmode="email"
+                        <input class="form-control" id="email" type="email" name="email"
                                autocomplete="username" required autofocus>
                     </div>
                 </div>
