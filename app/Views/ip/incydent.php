@@ -94,7 +94,7 @@ $badgeWaga = static function (string $waga): string {
         </div>
         <div class="card-body pt-3">
             <?php if (empty($szczegoly['zrodlo_wiersz'])): ?>
-                <p class="text-body-secondary mb-0">Brak wiersza w tabeli źródła (id_w_zrodle puste lub nieznane).</p>
+                <p class="text-body-secondary mb-0">Brak danych źródła.</p>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -133,7 +133,7 @@ $badgeWaga = static function (string $waga): string {
         </div>
         <div class="card-body pt-3">
             <?php if (empty($szczegoly['obserwacje'])): ?>
-                <p class="text-body-secondary mb-0">Brak obserwacji w mcs_obserwacje.</p>
+                <p class="text-body-secondary mb-0">Brak obserwacji.</p>
             <?php else: ?>
                 <ol class="list-group list-group-numbered list-group-flush">
                     <?php foreach ($szczegoly['obserwacje'] as $obs): ?>

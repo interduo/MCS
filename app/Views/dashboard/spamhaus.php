@@ -67,8 +67,7 @@ $aktywne   = array_values(array_filter($trafienia, static fn ($t) => \App\Models
     </nav>
     <h1 class="h3 mb-1">Spamhaus DROP <span class="badge <?= $wynikKlasa ?> align-middle fs-6" id="spamhaus-wynik"><?= esc($wynikTekst) ?></span></h1>
     <p class="text-body-secondary mb-0">
-        Listy DROP (IPv4), DROPv6 i ASN-DROP pobierane raz na dobę i dopasowane lokalnie do prefiksów AS
-        (<a href="<?= site_url('admin/ustawienia') ?>">as198050_cidry</a>) i ASN. Trafienie tworzy incydent (źródło Spamhaus DROP).
+        DROP, DROPv6 i ASN-DROP porównywane raz na dobę z <a href="<?= site_url('admin/ustawienia') ?>">prefiksami AS</a>.
     </p>
 </div>
 

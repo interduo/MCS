@@ -4,10 +4,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
         <h1 class="h3 mb-1">Wtyczki źródeł</h1>
-        <p class="text-body-secondary mb-0">
-            Import i UI przełączasz kliknięciem stanu. Klucz GreyNoise i URLhaus wpisujesz przyciskiem <strong>Klucz</strong> w wierszu wtyczki.
-            „Pobierz teraz” = ten sam tor co cron (<code>mcs:pobierz</code>).
-        </p>
+        <p class="text-body-secondary mb-0">Kliknij stan, żeby go przełączyć.</p>
     </div>
     <?php if ($pluginy !== []): ?>
         <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2">
@@ -26,7 +23,7 @@
 <?php if ($pluginy === []): ?>
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body">
-            <p class="text-body-secondary mb-0">Brak wtyczek w rejestrze. Uruchom: <code>php spark mcs:seed-pluginy</code></p>
+            <p class="text-body-secondary mb-0">Brak wtyczek. Uruchom <code>php spark mcs:seed-pluginy</code>.</p>
         </div>
     </div>
 <?php else: ?>
@@ -206,16 +203,14 @@
                                         <?php endif; ?>
                                     <?php endif; ?>
                                     <form method="post" action="<?= site_url('admin/pluginy/pobierz') ?>" class="mb-0"
-                                          onsubmit="return confirm('Uruchomić pobieranie dla <?= esc($zrodlo, 'js') ?>? Może potrwać dłużej.');">
+                                          onsubmit="return confirm('Pobrać teraz: <?= esc($nazwa, 'js') ?>?');">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="zrodlo" value="<?= esc($zrodlo, 'attr') ?>">
                                         <button type="submit" class="btn btn-sm btn-success"
-                                            <?= $importWstrzymany ? 'disabled title="Import nieaktywny — włącz import, potem spróbuj ponownie"' : '' ?>>
+                                            <?= $importWstrzymany ? 'disabled title="Najpierw włącz import"' : '' ?>>
                                             <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz teraz
                                         </button>
                                     </form>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-                                            title="Dostępne w późniejszej fazie">Usuń dane</button>
                                 </div>
                             </td>
                         </tr>
@@ -262,11 +257,7 @@ $sndsZrodloEtykieta = match ($sndsZrodlo) {
                        target="_blank" rel="noopener noreferrer">
                         Pobierz klucz z portalu Auto
                     </a>
-                    <div class="form-text text-break mt-1">
-                        <a href="https://substrate.office.com/ip-domain-management-snds/SNDS/Auto"
-                           target="_blank" rel="noopener noreferrer">https://substrate.office.com/ip-domain-management-snds/SNDS/Auto</a>
-                        — klucz wygasa zwykle po ~30 dniach.
-                    </div>
+                    <div class="form-text mt-1">Klucz wygasa zwykle po ~30 dniach.</div>
                 </div>
                 <label class="form-label" for="mcs_snds_key">Nowy klucz (UUID)</label>
                 <div class="input-group">
@@ -279,9 +270,7 @@ $sndsZrodloEtykieta = match ($sndsZrodlo) {
                         <i class="bi bi-eye" aria-hidden="true"></i>
                     </button>
                 </div>
-                <div class="form-text">
-                    Puste pole + Zapisz usuwa wartość z bazy (wraca <code>mcs.snds.key</code> z .env).
-                </div>
+                <div class="form-text">Puste pole usuwa klucz z panelu.</div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -361,13 +350,7 @@ $etykietaZrodlaKlucza = static function (string $zrodlo): string {
 <section class="mb-4">
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0 d-flex flex-wrap justify-content-between align-items-start gap-2">
-            <div>
-                <h2 class="h5 mb-1">Historia importów</h2>
-                <p class="small text-body-secondary mb-0">
-                    Ostatnie <?= (int) count($importy ?? []) ?> przebiegów
-                    (ok / błąd / kwarantanna / w trakcie).
-                </p>
-            </div>
+            <h2 class="h5 mb-0">Historia importów</h2>
             <a href="<?= site_url('admin/pluginy/historia-importow') ?>" class="btn btn-outline-primary btn-sm">
                 Pełna historia importów
             </a>

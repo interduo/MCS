@@ -21,34 +21,25 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <?php if (! empty($ipNowe)): ?>
                 <span class="badge text-bg-success align-middle fs-6" title="Pierwszy raz w MCS w ostatnich dniach">NEW</span>
             <?php endif; ?>
+            <?php if (! empty($asMatchWlaczone) && empty($blad)): ?>
+                <?php if (! empty($naszeIp)): ?>
+                    <span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle align-middle fs-6">AS<?= $asAsn ?></span>
+                <?php else: ?>
+                    <span class="badge text-bg-light text-body-secondary border align-middle fs-6">poza AS<?= $asAsn ?></span>
+                <?php endif; ?>
+            <?php endif; ?>
         </h1>
         <?php if (! empty($revDnsWlaczone)): ?>
-            <?php if (! empty($revDns)): ?>
-                <p class="text-body-secondary mb-1">
-                    <span class="small text-uppercase text-body-secondary me-1">reverse DNS</span>
+            <p class="text-body-secondary small mb-0" title="reverse DNS">
+                <?php if (! empty($revDns)): ?>
                     <span class="font-monospace"><?= esc((string) $revDns) ?></span>
-                </p>
-            <?php else: ?>
-                <p class="text-body-secondary small mb-1">reverse DNS: brak PTR</p>
-            <?php endif; ?>
+                <?php else: ?>
+                    brak PTR
+                <?php endif; ?>
+            </p>
         <?php endif; ?>
-        <p class="text-body-secondary mb-0">Status + problemy zagregowane — triage bez osobnej karty na każde zdarzenie.</p>
     </div>
 </div>
-
-<?php if (! empty($asMatchWlaczone) && empty($blad)): ?>
-    <?php if (! empty($naszeIp)): ?>
-        <div class="alert alert-success border-0 shadow-sm rounded-3 py-2 mb-4" role="status">
-            <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
-            Adres należy do przestrzeni AS<?= $asAsn ?> (CIDR z <a href="<?= site_url('admin/ustawienia') ?>" class="alert-link">ustawień</a>).
-        </div>
-    <?php else: ?>
-        <p class="text-body-secondary small mb-4">
-            Poza AS<?= $asAsn ?> — brak trafienia w prefiksy CIDR
-            (<a href="<?= site_url('admin/ustawienia') ?>">ustawienia</a>).
-        </p>
-    <?php endif; ?>
-<?php endif; ?>
 
 <?php if (! empty($flashOk)): ?>
     <div class="alert alert-success border-0 shadow-sm rounded-3" role="status"><?= esc($flashOk) ?></div>
@@ -111,13 +102,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="card-body py-3">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                 <div>
-                    <h2 class="h5 mb-1">
+                    <h2 class="h5 mb-0">
                         <i class="bi bi-hdd-network me-1 text-primary" aria-hidden="true"></i>
                         LMS — komputer / abonent
                     </h2>
-                    <p class="text-body-secondary small mb-0">
-                        Mapowanie z LMS (cache TTL). Nie zmienia indeksu ani badge.
-                    </p>
                 </div>
                 <span class="small text-body-secondary" id="lms-status">
                     tryb: <?= esc((string) ($lmsTryb ?? '—')) ?>
@@ -162,7 +150,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="lms-force"
                     data-url="<?= site_url('ip/' . $ip . '/enrichment/lms') ?>" data-metoda="post" data-force="1"
                     <?= $lmsDisabled ? 'disabled title="Brak konfiguracji LMS — ustaw mcs.lms.baseUrl+mapToken w .env"' : '' ?>>
-                    Odśwież (force)
+                    Odśwież
                 </button>
             </div>
         </div>
@@ -170,8 +158,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body py-3">
-            <div class="small text-body-secondary mb-2">Filtr źródła</div>
-            <div class="btn-group flex-wrap" role="group" aria-label="Filtr źródła">
+            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filtr źródła">
                 <a href="<?= site_url('ip/' . $ip) ?>"
                    class="btn <?= $filtrZrodlo === null ? 'btn-primary' : 'btn-outline-secondary' ?>">wszystkie</a>
                 <?php foreach ($zrodla as $z): ?>
@@ -188,7 +175,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         </div>
         <div class="card-body pt-3">
             <?php if ($problemy === []): ?>
-                <p class="text-body-secondary mb-0">Brak widocznych problemów dla tego IP.</p>
+                <p class="text-body-secondary mb-0">Brak problemów.</p>
             <?php else: ?>
                 <div class="accordion accordion-flush" id="accordionProblemy" aria-label="Zagregowane problemy">
                     <?php foreach ($problemy as $i => $problem): ?>
@@ -294,13 +281,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-search me-1 text-primary" aria-hidden="true"></i>
-            Enrichment — AbuseIPDB
+            AbuseIPDB
         </h2>
     </div>
     <div class="card-body">
-        <p class="card-text text-body-secondary small">
-            Lookup reputacji na żądanie (cache TTL). Nie zmienia indeksu ani badge.
-        </p>
 
         <?php if (! empty($abuseipdbKomunikat)): ?>
             <div class="alert alert-danger border-0 rounded-3 py-2" id="abuseipdb-komunikat" role="alert"><?= esc($abuseipdbKomunikat) ?></div>
@@ -317,7 +301,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <button type="button" class="btn btn-outline-secondary" id="abuseipdb-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/abuseipdb') ?>" data-metoda="post" data-force="1"
                 <?= (! empty($abuseipdbKomunikat) && ($abuseipdbTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak klucza mcs.abuseipdb.apiKey — ustaw w .env albo mcs.abuseipdb.fixturePath do dry-run"' : '' ?>>
-                Odśwież (force)
+                Odśwież
             </button>
             <span class="small text-body-secondary" id="abuseipdb-status">
                 tryb: <?= esc((string) ($abuseipdbTryb ?? '—')) ?>
@@ -352,13 +336,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-shield-exclamation me-1 text-danger" aria-hidden="true"></i>
-            Enrichment — isMalicious
+            isMalicious
         </h2>
     </div>
     <div class="card-body">
-        <p class="card-text text-body-secondary small">
-            Lookup reputacji IP (API isMalicious, cache TTL). Nie zmienia indeksu ani badge.
-        </p>
 
         <?php if (! empty($ismaliciousKomunikat)): ?>
             <div class="alert alert-danger border-0 rounded-3 py-2" id="ismalicious-komunikat" role="alert"><?= esc($ismaliciousKomunikat) ?></div>
@@ -375,7 +356,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <button type="button" class="btn btn-outline-secondary" id="ismalicious-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/ismalicious') ?>" data-metoda="post" data-force="1"
                 <?= (! empty($ismaliciousKomunikat) && ($ismaliciousTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak credentials isMalicious (mcs.ismalicious.apiKey/apiSecret) — ustaw w .env"' : '' ?>>
-                Odśwież (force)
+                Odśwież
             </button>
             <span class="small text-body-secondary" id="ismalicious-status">
                 tryb: <?= esc((string) ($ismaliciousTryb ?? '—')) ?>
@@ -420,13 +401,12 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-radar me-1 text-info" aria-hidden="true"></i>
-            Enrichment — GreyNoise
+            GreyNoise
         </h2>
     </div>
     <div class="card-body">
         <p class="card-text text-body-secondary small">
-            Lookup Community (szum internetowy albo usługa RIOT). Cache 7 dni. Nie zmienia indeksu ani badge.
-            Cron nie odpytuje API — „Odśwież” zużywa limit darmowego konta.
+            Każde sprawdzenie zużywa limit darmowego konta.
         </p>
 
         <?php if (! empty($greynoiseKomunikat)): ?>
@@ -444,7 +424,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <button type="button" class="btn btn-outline-secondary" id="greynoise-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/greynoise') ?>" data-metoda="post" data-force="1"
                 <?= (! empty($greynoiseKomunikat) && ($greynoiseTryb ?? '') === 'brak_klucza') ? 'disabled title="Brak klucza GreyNoise — ustaw w Wtyczki → GreyNoise → Klucz"' : '' ?>>
-                Odśwież (force)
+                Odśwież
             </button>
             <span class="small text-body-secondary" id="greynoise-status">
                 tryb: <?= esc((string) ($greynoiseTryb ?? '—')) ?>
@@ -484,15 +464,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-envelope-exclamation me-1 text-warning" aria-hidden="true"></i>
-            Enrichment — SpamRats
+            SpamRats
         </h2>
     </div>
     <div class="card-body">
-        <p class="card-text text-body-secondary small">
-            DNSBL RATS-All (Dyna / NoPtr / Spam / Auth) — lookup IPv4 na żądanie, cache TTL.
-            Listy są przeznaczone do sprawdzania IP łączącego się serwera poczty, nie do monitoringu WWW.
-            Nie zmienia indeksu ani badge.
-        </p>
 
         <?php if (! empty($spamratsKomunikat)): ?>
             <div class="alert alert-danger border-0 rounded-3 py-2" id="spamrats-komunikat" role="alert"><?= esc($spamratsKomunikat) ?></div>
@@ -523,7 +498,7 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
             <button type="button" class="btn btn-outline-secondary" id="spamrats-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/spamrats') ?>" data-metoda="post" data-force="1"
                 <?= $spamratsDisabled ? 'disabled title="' . $spamratsTitle . '"' : '' ?>>
-                Odśwież (force)
+                Odśwież
             </button>
             <a class="btn btn-outline-secondary" href="https://www.spamrats.com/bl?<?= rawurlencode((string) $ip) ?>"
                target="_blank" rel="noopener noreferrer">
@@ -588,15 +563,10 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
     <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
         <h2 class="h5 mb-0">
             <i class="bi bi-shield-exclamation me-1 text-danger" aria-hidden="true"></i>
-            Enrichment — DNSBL (AS)
+            DNSBL
         </h2>
     </div>
     <div class="card-body">
-        <p class="card-text text-body-secondary small">
-            Multi-list DNSBL (UCEPROTECT, SpamCop, DroneBL) — skan cron AS / LMS
-            oraz lookup na żądanie. Trafienia trafiają też do indeksu incydentów (źródło dnsbl).
-            <a href="<?= site_url('dashboard/dnsbl') ?>">Zbiorczy widok AS</a>.
-        </p>
 
         <?php if (! empty($dnsblKomunikat)): ?>
             <div class="alert alert-danger border-0 rounded-3 py-2" id="dnsbl-komunikat" role="alert"><?= esc($dnsblKomunikat) ?></div>
@@ -616,13 +586,13 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-primary" id="dnsbl-sprawdz"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/dnsbl') ?>" data-metoda="post"
-                <?= $dnsblIpv6 ? 'disabled title="DNSBL w MCS obsługuje tylko IPv4"' : '' ?>
+                <?= $dnsblIpv6 ? 'disabled title="DNSBL w MCS obsługuje tylko IPv4"' : '' ?>>
                 Sprawdź DNSBL
             </button>
             <button type="button" class="btn btn-outline-secondary" id="dnsbl-force"
                 data-url="<?= site_url('ip/' . $ip . '/enrichment/dnsbl') ?>" data-metoda="post" data-force="1"
-                <?= $dnsblIpv6 ? 'disabled title="DNSBL w MCS obsługuje tylko IPv4"' : '' ?>
-                Odśwież (force)
+                <?= $dnsblIpv6 ? 'disabled title="DNSBL w MCS obsługuje tylko IPv4"' : '' ?>>
+                Odśwież
             </button>
             <a class="btn btn-outline-secondary" href="<?= site_url('dashboard/dnsbl') ?>">
                 Dashboard DNSBL
@@ -736,20 +706,20 @@ $asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
 <?php
 $stCidr   = isset($speedtestCidr) && is_string($speedtestCidr) && $speedtestCidr !== '' ? $speedtestCidr : null;
 $stLiczba = (int) ($speedtestLiczba24 ?? 0);
+$stSlowo  = $stLiczba === 1 ? 'test'
+    : (in_array($stLiczba % 10, [2, 3, 4], true) && ! in_array($stLiczba % 100, [12, 13, 14], true) ? 'testy' : 'testów');
 ?>
 <?php if ($stCidr !== null && $stLiczba > 0): ?>
-<div class="alert alert-info border-0 shadow-sm rounded-3 mt-4 mb-0" role="status" id="speedtest-cidr-note">
+<p class="small text-body-secondary mt-4 mb-0" id="speedtest-cidr-note">
     <i class="bi bi-speedometer2 me-1" aria-hidden="true"></i>
-    Speedtest: testy w Twoim /24
-    (<span class="font-monospace"><?= esc($stCidr) ?></span>, <?= $stLiczba ?> <?= $stLiczba === 1 ? 'test' : 'testów' ?>) —
-    Ookla anonimizuje klientów do <span class="font-monospace">*.0</span>.
-    <a class="alert-link" href="<?= site_url('dashboard/speedtest') ?>">Agregaty Speedtest</a>
-</div>
+    Speedtest: <?= $stLiczba ?> <?= $stSlowo ?> w Twoim /24
+    (<a class="font-monospace" href="<?= site_url('dashboard/speedtest') ?>"><?= esc($stCidr) ?></a>)
+</p>
 <?php endif; ?>
 
 <input type="hidden" id="mcs-csrf" name="<?= esc(csrf_token(), 'attr') ?>" value="<?= esc(csrf_hash(), 'attr') ?>">
 <script>
-// Enrichment: „Sprawdź” i „Odśwież (force)” = POST z CSRF (GET tylko czyta cache).
+// Enrichment: „Sprawdź” i „Odśwież” = POST z CSRF (GET tylko czyta cache).
 // force=1 wysyłany tylko z przycisku z data-force="1".
 // Po POST serwer zwraca nowy token CSRF w nagłówku X-Mcs-Csrf (regenerate = true).
 window.mcsZapytaj = function (btn, url) {

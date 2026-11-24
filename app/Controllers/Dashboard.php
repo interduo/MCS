@@ -368,7 +368,7 @@ class Dashboard extends BaseController
                 $cache = $w->zCache($zakres, $u['cache_ttl']);
                 if ($cache !== null) {
                     return redirect()->to($wroc . '?skan=' . $cache['id'])
-                        ->with('komunikat', 'Wynik z cache (skan #' . $cache['id'] . ', ' . $cache['koniec_at'] . '). Użyj „Skanuj ponownie”, aby odświeżyć.');
+                        ->with('komunikat', 'Wynik skanu #' . $cache['id'] . ' z ' . \App\Libraries\CzasUi::pokaz($cache['koniec_at']) . '.');
                 }
             }
 

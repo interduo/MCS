@@ -306,7 +306,7 @@ $statusPl  = [
     <div class="card border-0 shadow-sm rounded-3 mb-4" id="dnsbl-trend">
         <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
             <h2 class="h6 mb-0">Listowane IP w AS — ostatnie <?= $n ?> pełnych skanów</h2>
-            <div class="small text-body-secondary">Pełny skan prefiksów as198050_cidry (nocny lub ręczny). Bez stref informacyjnych.</div>
+            <div class="small text-body-secondary">Skan wszystkich prefiksów AS (nocny lub ręczny).</div>
         </div>
         <div class="card-body">
             <svg viewBox="0 0 <?= $szer ?> <?= $wys + 18 ?>" width="100%" height="<?= $wys + 18 ?>" role="img" aria-label="Trend liczby listowanych IP" preserveAspectRatio="none">

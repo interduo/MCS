@@ -37,19 +37,16 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-        <h1 class="h3 mb-1">Przegląd zagrożeń</h1>
-        <p class="text-body-secondary mb-0">
-            Triage IP z indeksu MCS — Shadowserver, Wanguard, SNDS, CERT N6 i inne źródła.
-            KPI i trendy w wybranym oknie; ranking IP i skróty incydentów są na osobnych listach.
-        </p>
+        <h1 class="h3 mb-0">Przegląd zagrożeń</h1>
     </div>
     <div class="d-flex flex-wrap gap-2">
         <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle px-3 py-2">
             Okno: <?= (int) $okno ?> <?= (int) $okno === 1 ? 'dzień' : 'dni' ?>
         </span>
         <?php if (! empty($asMatchWlaczone)): ?>
-            <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2">
-                AS<?= $asAsn ?>
+            <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2"
+                  title="Tylko IP z prefiksów AS<?= $asAsn ?>">
+                <i class="bi bi-funnel-fill me-1" aria-hidden="true"></i>AS<?= $asAsn ?>
             </span>
         <?php endif; ?>
         <?php if (! empty($filtrCidrEfekt)): ?>
@@ -63,10 +60,10 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
             ['low', 'medium', 'high', 'critical'],
             (int) array_search($kolejkaMinWaga, ['low', 'medium', 'high', 'critical'], true),
         );
-        $tipKolejka = 'IP z wagą ' . implode('/', $kolejkaWagi)
-            . ' z ostatnich ' . (\App\Libraries\KolejkaDnia::oknoDni() * 24) . ' h.';
-        $tipIp = 'Ranking IP według źródeł, wagi i ostatniej aktywności w wybranym oknie.';
-        $tipInc = 'Najnowsze skróty incydentów z indeksu, z aktualnymi filtrami.';
+        $tipKolejka = 'Waga ' . implode('/', $kolejkaWagi)
+            . ', ostatnie ' . (\App\Libraries\KolejkaDnia::oknoDni() * 24) . ' h';
+        $tipIp = 'Ranking IP w oknie';
+        $tipInc = 'Najnowsze incydenty';
         ?>
         <a class="btn btn-sm btn-primary" href="<?= site_url('dashboard/kolejka') ?>"
            data-bs-toggle="tooltip" data-bs-placement="bottom"
@@ -85,14 +82,6 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
         </a>
     </div>
 </div>
-
-<?php if (! empty($asMatchWlaczone)): ?>
-    <div class="alert alert-primary border-0 shadow-sm rounded-3 py-2 mb-4" role="status">
-        <i class="bi bi-funnel-fill me-1" aria-hidden="true"></i>
-        Matchowanie AS<?= $asAsn ?> jest włączone — przegląd (KPI, ranking i ostatnie) obejmuje tylko IP
-        z prefiksów CIDR w <a href="<?= site_url('admin/ustawienia') ?>" class="alert-link">ustawieniach</a>.
-    </div>
-<?php endif; ?>
 
 <?php if (! empty($flashOk)): ?>
     <div class="alert alert-success border-0 shadow-sm rounded-3" role="status"><?= esc($flashOk) ?></div>
@@ -184,12 +173,7 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
     <?php if ($sumaObs > 0): ?>
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
-            <h2 class="h5 mb-1">Trendy dzienne z incydentów</h2>
-            <p class="small text-body-secondary mb-0">
-                Wolumen incydentów aktywnych w oknie <?= (int) $okno ?> <?= (int) $okno === 1 ? 'dnia' : 'dni' ?>.
-                Pasek to rozkład źródeł zgłoszeń — kliknij dzień, żeby zobaczyć liczby.
-                Kliknięcie źródła po prawej zawęża przegląd do tego źródła.
-            </p>
+            <h2 class="h5 mb-0">Trendy dzienne</h2>
         </div>
         <div class="card-body pt-3">
             <div class="row g-4">
@@ -301,12 +285,9 @@ $hrefZrodla = static function (string $kod) use ($queryEksport): string {
                             <?php endforeach; ?>
                         </ul>
                     <?php endif; ?>
-                    <p class="small text-body-secondary mt-2 mb-0">
-                        Długość paska to wolumen dnia względem maksimum w oknie. Kolory to źródła zgłoszeń.
-                    </p>
                 </div>
                 <div class="col-lg-4">
-                    <h3 class="h6">Źródła (suma w oknie)</h3>
+                    <h3 class="h6" title="Kliknij źródło, żeby zawęzić przegląd">Źródła</h3>
                     <?php if ($trendyZrodla === []): ?>
                         <p class="text-body-secondary small mb-0">Brak danych per źródło.</p>
                     <?php else: ?>

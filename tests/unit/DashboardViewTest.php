@@ -12,7 +12,7 @@ final class DashboardViewTest extends CIUnitTestCase
         $html = view('dashboard/index', $this->danePrzegladu());
 
         $this->assertStringContainsString('Przegląd zagrożeń', $html);
-        $this->assertStringContainsString('Trendy dzienne z incydentów', $html);
+        $this->assertStringContainsString('Trendy dzienne', $html);
         $this->assertStringContainsString('name="kategoria"', $html);
         $this->assertStringContainsString('name="port"', $html);
         $this->assertStringContainsString('name="podsiec"', $html);
@@ -25,9 +25,9 @@ final class DashboardViewTest extends CIUnitTestCase
         $this->assertStringContainsString('bi-hdd-network', $html);
         $this->assertStringContainsString('bi-clock-history', $html);
         $this->assertStringContainsString('data-bs-toggle="tooltip"', $html);
-        $this->assertStringContainsString('Ranking&#x20;IP&#x20;wed&#x0142;ug&#x20;&#x017A;r&#xF3;de&#x0142;', $html);
-        $this->assertStringContainsString('Najnowsze&#x20;skr&#xF3;ty&#x20;incydent&#xF3;w', $html);
-        $this->assertStringContainsString('ostatnich&#x20;48&#x20;h.', $html);
+        $this->assertStringContainsString('Ranking&#x20;IP&#x20;w&#x20;oknie', $html);
+        $this->assertStringContainsString('Najnowsze&#x20;incydenty', $html);
+        $this->assertStringContainsString('ostatnie&#x20;48&#x20;h', $html);
         $this->assertStringContainsString('dashboard/kolejka', $html);
         $this->assertStringContainsString('dashboard/problematyczne-ip', $html);
         $this->assertStringContainsString('dashboard/incydenty', $html);

@@ -31,10 +31,6 @@
 
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body p-4">
-            <p class="text-body-secondary mb-4">
-                Zaloguj się, aby otworzyć przegląd zagrożeń, raporty IP i panel wtyczek.
-            </p>
-
             <?php if (! empty($blad)): ?>
                 <div class="alert alert-danger border-0 rounded-3" role="alert"><?= esc($blad) ?></div>
             <?php endif; ?>
@@ -63,10 +59,6 @@
             </form>
         </div>
     </div>
-
-    <p class="text-center small text-body-secondary mt-4 mb-0">
-        Monitoring incydentów i watchlista IP
-    </p>
 </main>
 <script src="<?= base_url('vendor/bootstrap-5.3.3/dist/js/bootstrap.bundle.min.js') ?>"></script>
 </body>
