@@ -8,11 +8,48 @@ Panel i zbieracz zgłoszeń o reputacji sieci dla małego ISP. MCS zbiera zgłos
 
 ## Co robi
 
-- Importuje zgłoszenia z wielu źródeł przez wtyczki (IMAP, API, pliki): Shadowserver, SNDS, Play, MojeCert, CERT N6, Wanguard, Wazuh, Cloudflare Botnet, CAIDA Spoofer, speedtest.
-- Skanuje własne prefiksy IPv4 na listach DNSBL (lokalny resolver `unbound`, limity zapytań, test kontrolny strefy).
-- Dopasowuje lokalnie darmowe listy Spamhaus DROP, DROPv6 i ASN-DROP do prefiksów AS.
-- Łączy dane w incydenty z wagą i deduplikacją, z widokiem per IP (`/ip/{adres}`).
-- Udostępnia API badge dla LMS+ (token) oraz panel z logowaniem i rolami.
+- Importuje zgłoszenia nadużyć z wielu źródeł przez wtyczki (IMAP, API, pliki CSV) — pełna lista w sekcji [Wtyczki źródeł](#wtyczki-źródeł).
+- Skanuje własne prefiksy IPv4 na listach DNSBL (lokalny resolver `unbound`, limity zapytań, test kontrolny strefy) — `/dashboard/dnsbl`.
+- Dopasowuje lokalnie darmowe listy Spamhaus DROP, DROPv6 i ASN-DROP do prefiksów AS — `/dashboard/spamhaus`.
+- Importuje IOC abuse.ch ThreatFox (`ip` i `ip:port`); trafienie w adresie własnej sieci tworzy incydenty — `/dashboard/threatfox`.
+- Agreguje raporty speedtest Ookla Servers reporting per /24 (IPv4) i /48 (IPv6) — `/dashboard/speedtest`.
+- Łączy dane w incydenty z wagą i deduplikacją, z widokiem per IP (`/ip/{adres}`) i enrichmentem (AbuseIPDB, DNSBL, GreyNoise, Ismalicious, SpamRats, LMS).
+- Udostępnia API badge dla LMS+ (token), API enrichment (`api/enrichment/{zrodlo}?ip=`) oraz panel z logowaniem i rolami.
+
+## Wtyczki źródeł
+
+Każde źródło to katalog `plugins/{zrodlo}/` (kontrakt: [plugins/README.md](plugins/README.md)). Nowe źródła startują jako wstrzymane.
+
+| Wtyczka | Co pobiera | Incydenty |
+|---|---|---|
+| `shadowserver` | raporty Shadowserver (IMAP) | tak |
+| `play` | zgłoszenia abuse Play | tak |
+| `snds` | Microsoft SNDS (token) | tak |
+| `mojecert` | MojeCert (API) | tak |
+| `cert_n6` | CERT N6 (API: bearer / apiKey / cert klienta) | tak |
+| `wanguard` | Wanguard (API) | tak |
+| `wazuh` | Wazuh (API, alerty) | tak |
+| `cloudflare_botnet` | Cloudflare Botnet Intelligence (API) | tak |
+| `spoofer` | CAIDA Spoofer — BCP38, spoofowalne prefiksy | tak |
+| `blocklist_de` | blocklist.de — ataki z ostatnich 48 h (ssh, mail, bruteforce, bots, strongips) | tak |
+| `urlhaus` | URLhaus abuse.ch — recent CSV (adresy malware) | tylko gdy host = adres IP |
+| `threatfox` | ThreatFox abuse.ch — IOC `ip` / `ip:port`, wymaga Auth-Key | tak (trafienia) |
+| `spamhaus` | lokalne dopasowanie DROP / DROPv6 / ASN-DROP do prefiksów AS | tak |
+| `dnsbl` | skaner DNSBL własnych adresów IP (z panelu lub cron) | tak |
+| `greynoise` | GreyNoise Community API — enrichment IP | tylko enrichment |
+| `ismalicious` | isMalicious — enrichment IP | tylko enrichment |
+| `spamrats` | SpamRats RATS-All — enrichment IP | tylko enrichment |
+| `lms_mapowanie` | LMS — IP → komputer / abonent | tylko enrichment |
+| `speedtest` | Ookla Servers reporting (portal lub CSV) — agregaty /24, /48 | tylko enrichment |
+
+Enrichment `abuseipdb` nie jest wtyczką — działa jako serwis: `php spark mcs:abuseipdb <ip>`.
+
+## Enrichment
+
+- Panel per IP: `GET /ip/{ip}/enrichment/{abuseipdb,dnsbl,greynoise,ismalicious,lms,spamrats}` czyta cache; `POST` tego samego adresu (z tokenem CSRF) wymusza odpytanie API.
+- API: `GET api/enrichment/{zrodlo}?ip={ip}&force=1` — te same źródła, JSON: `400` nieznane źródło, `429` rate limit z nagłówkiem `Retry-After`, `503` brak klucza / konfiguracji.
+- Klucze API ustawiasz w `.env` albo przyciskiem „Klucz” na wierszu wtyczki w `/admin/pluginy` (np. GreyNoise, ThreatFox, URLhaus, SNDS).
+- Enrichment nie trafia do indeksu badge — osobne tabele `mcs_enrichment_*` i widoki `/dashboard/{dnsbl,spamhaus,threatfox,speedtest}`.
 
 ## Wymagania
 
