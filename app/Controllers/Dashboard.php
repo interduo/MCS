@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\CsvBezpieczenstwo;
 use App\Libraries\DashboardFiltry;
 use App\Libraries\Enrichment\SpeedtestSerwis;
 use App\Libraries\KolejkaDnia;
@@ -524,14 +525,15 @@ class Dashboard extends BaseController
         ]);
 
         foreach ($topIp as $wiersz) {
+            // Wszystkie pola neutralizowane przed formula injection (dane z zewnętrznych feedów).
             fputcsv($fh, [
-                (string) ($wiersz['ip'] ?? ''),
-                (int) ($wiersz['liczba_zrodel'] ?? 0),
-                implode('|', $wiersz['zrodla'] ?? []),
-                implode('|', $wiersz['kategorie'] ?? []),
-                (string) ($wiersz['max_waga'] ?? ''),
-                (int) ($wiersz['liczba_incydentow'] ?? 0),
-                (string) ($wiersz['ostatnio_widziane'] ?? ''),
+                CsvBezpieczenstwo::pole($wiersz['ip'] ?? ''),
+                CsvBezpieczenstwo::pole($wiersz['liczba_zrodel'] ?? 0),
+                CsvBezpieczenstwo::pole(implode('|', $wiersz['zrodla'] ?? [])),
+                CsvBezpieczenstwo::pole(implode('|', $wiersz['kategorie'] ?? [])),
+                CsvBezpieczenstwo::pole($wiersz['max_waga'] ?? ''),
+                CsvBezpieczenstwo::pole($wiersz['liczba_incydentow'] ?? 0),
+                CsvBezpieczenstwo::pole($wiersz['ostatnio_widziane'] ?? ''),
             ]);
         }
 

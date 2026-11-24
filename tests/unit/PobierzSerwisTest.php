@@ -147,7 +147,9 @@ final class PobierzSerwisTest extends CIUnitTestCase
 
         $this->assertCount(1, $wyniki);
         $this->assertSame('blad', $wyniki[0]['status']);
-        $this->assertSame('boom', $wyniki[0]['msg']);
+        // #433: surowy getMessage() ('boom') nie może trafić do UI — generyczny komunikat + ID zdarzenia
+        $this->assertStringNotContainsString('boom', $wyniki[0]['msg']);
+        $this->assertMatchesRegularExpression('/^Wystąpił błąd wewnętrzny \(zdarzenie [0-9a-f]{8}\)/', $wyniki[0]['msg']);
     }
 
     public function testPominieciePrzezHarmonogramPokazujeKomunikatZamiastHealth(): void

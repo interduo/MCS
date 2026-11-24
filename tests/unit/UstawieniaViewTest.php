@@ -86,4 +86,107 @@ final class UstawieniaViewTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/<option value="shadowserver"[^>]*selected/', $html);
         $this->assertMatchesRegularExpression('/<option value="high"[^>]*selected/', $html);
     }
+
+    /**
+     * #434: po błędnym CIDR (redirect z withInput) textarea pokazuje wklejoną listę (old), nie wartość z DB.
+     */
+    public function testTextareaCidryPokazujeOldInputZamiastBazy(): void
+    {
+        $sesjaPrzed = $_SESSION ?? null;
+        $_SESSION = [];
+        session()->set('_ci_old_input', ['post' => ['as198050_cidry' => "91.231.80.0/22\nzly-cidr-123\n176.97.24.0/21"]]);
+
+        try {
+            $html = view('admin/ustawienia/index', [
+                'title'           => 'Ustawienia — MCS',
+                'navAktywny'      => 'ustawienia',
+                'email'           => 'admin@example.com',
+                'rola'            => 'admin',
+                'komunikat'       => null,
+                'blad'            => 'Niepoprawne CIDR: zly-cidr-123',
+                'asWlaczone'      => true,
+                'asCidryTekst'    => '10.0.0.0/8', // wartość z DB — ma być zastąpiona przez old
+                'asAsn'           => 198050,
+                'asDomyslneCidry' => ['91.231.80.0/22'],
+                'revDnsWlaczone'  => false,
+            ]);
+        } finally {
+            $_SESSION = $sesjaPrzed ?? [];
+        }
+
+        $this->assertStringContainsString('zly-cidr-123', $html);
+        $this->assertStringContainsString('91.231.80.0/22', $html);
+        // textarea nie pokazuje starej wartości z DB
+        $this->assertMatchesRegularExpression(
+            '/<textarea[^>]*name="as198050_cidry"[^>]*>(?:(?!10\.0\.0\.0\/8).)*<\/textarea>/s',
+            $html,
+        );
+    }
+
+    public function testTextareaCidryBezOldInputPokazujeBaze(): void
+    {
+        $sesjaPrzed = $_SESSION ?? null;
+        $_SESSION = [];
+
+        try {
+            $html = view('admin/ustawienia/index', [
+                'title'           => 'Ustawienia — MCS',
+                'navAktywny'      => 'ustawienia',
+                'email'           => 'admin@example.com',
+                'rola'            => 'admin',
+                'komunikat'       => null,
+                'blad'            => null,
+                'asWlaczone'      => true,
+                'asCidryTekst'    => "10.0.0.0/8\n",
+                'asAsn'           => 198050,
+                'asDomyslneCidry' => [],
+                'revDnsWlaczone'  => false,
+            ]);
+        } finally {
+            $_SESSION = $sesjaPrzed ?? [];
+        }
+
+        $this->assertMatchesRegularExpression(
+            '/<textarea[^>]*name="as198050_cidry"[^>]*>10\.0\.0\.0\/8/s',
+            $html,
+        );
+    }
+
+    /**
+     * #434: opcje po błędzie walidacji pokazują wklejone wartości (old), nie wartości z DB.
+     */
+    public function testOpcjePokazujaOldInputPoBledzie(): void
+    {
+        $sesjaPrzed = $_SESSION ?? null;
+        $_SESSION = [];
+        session()->set('_ci_old_input', ['post' => ['opcja' => ['mcs.test.int' => '42', 'mcs.test.enum' => 'b']]]);
+
+        try {
+            $html = view('admin/ustawienia/opcje', [
+                'title'      => 'Opcje strojenia — MCS',
+                'navAktywny' => 'ustawienia',
+                'email'      => 'admin@example.com',
+                'rola'       => 'admin',
+                'komunikat'  => null,
+                'blad'       => 'Nie zapisano opcji — popraw błędy.',
+                'bledy'      => ['mcs.test.int' => 'poza zakresem'],
+                'grupy'      => [
+                    'Test' => [
+                        'mcs.test.int'  => ['etykieta' => 'Test int', 'zrodlo' => 'db', 'typ' => 'int',
+                            'wartosc' => '10', 'domyslna' => '5', 'min' => 1, 'max' => 100],
+                        'mcs.test.enum' => ['etykieta' => 'Test enum', 'zrodlo' => 'env', 'typ' => 'enum',
+                            'wartosc' => 'a', 'domyslna' => 'a', 'opcje' => ['a', 'b']],
+                    ],
+                ],
+            ]);
+        } finally {
+            $_SESSION = $sesjaPrzed ?? [];
+        }
+
+        // input int: old 42 zamiast wartości z DB (10)
+        $this->assertMatchesRegularExpression('/name="opcja\[mcs\.test\.int\]"[^>]*value="42"|value="42"[^>]*name="opcja\[mcs\.test\.int\]"/s', $html);
+        $this->assertStringNotContainsString('value="10"', $html);
+        // select enum: old 'b' zaznaczone zamiast 'a'
+        $this->assertMatchesRegularExpression('/<option value="b" selected>/', $html);
+    }
 }

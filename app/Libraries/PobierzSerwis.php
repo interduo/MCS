@@ -141,7 +141,8 @@ class PobierzSerwis
             return [
                 'zrodlo' => $zrodlo,
                 'status' => 'blad',
-                'msg'    => $e->getMessage(),
+                // #433: do UI/JSON tylko whitelista albo generyczny komunikat + ID zdarzenia (pełny błąd w logu)
+                'msg'    => BladUi::komunikat($e, 'pobierz ' . $zrodlo),
             ];
         } finally {
             $this->zwolnijBlokade($uchwyt);
