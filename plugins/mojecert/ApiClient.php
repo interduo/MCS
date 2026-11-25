@@ -88,6 +88,7 @@ class ApiClient
         ];
 
         $attempt    = 0;
+        $retry5xx   = 0;
         $lastResult = null;
 
         while ($attempt < $this->maxThrottleAttempts) {
@@ -96,8 +97,14 @@ class ApiClient
             if ($lastResult['ok']) {
                 return $lastResult;
             }
-            if (! $this->isThrottle($lastResult)) {
-                return $lastResult;
+            $throttle = $this->isThrottle($lastResult);
+            if (! $throttle) {
+                // Issue #471: przejściowy 5xx / błąd sieciowy — max 2 extra próby, krótki backoff.
+                if (! $this->isRetryable5xx($lastResult) || ++$retry5xx > 2) {
+                    return $lastResult;
+                }
+                sleep(min(2 * $retry5xx, 6));
+                continue;
             }
             $wait = max(1, min($this->throttleSeconds($lastResult), 120));
             sleep($wait);
@@ -234,6 +241,20 @@ class ApiClient
         $err = (string) ($result['error'] ?? '');
 
         return $err !== '' && stripos($err, 'throttled') !== false;
+    }
+
+    /**
+     * Issue #471: przejściowe 5xx lub błąd sieciowy (http_code=0) — warto spróbować ponownie.
+     * 4xx (poza 429) nie są retryowane.
+     */
+    private function isRetryable5xx(array $result): bool
+    {
+        $kod = (int) ($result['http_code'] ?? 0);
+        if ($kod >= 500 && $kod < 600) {
+            return true;
+        }
+
+        return $kod === 0 && stripos((string) ($result['error'] ?? ''), 'Network error') === 0;
     }
 
     /**
