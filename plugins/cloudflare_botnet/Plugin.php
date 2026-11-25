@@ -3,8 +3,10 @@
 namespace McsPluginy\cloudflare_botnet;
 
 use App\Libraries\ImportKoperta;
+use App\Libraries\ImportLimity;
 use App\Libraries\IncydentZapis;
 use App\Libraries\PluginOpisPolaczenia;
+use App\Libraries\PrzekroczonyLimitImportu;
 use App\Libraries\SourcePluginInterface;
 use App\Libraries\WagaV1;
 use App\Models\PluginModel;
