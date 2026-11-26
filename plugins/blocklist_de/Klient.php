@@ -4,8 +4,8 @@ namespace McsPluginy\blocklist_de;
 
 /**
  * HTTPS GET list blocklist.de. Bez przekierowań. MD5 liczymy z treści po dekompresji.
- * Gdy suma nie zgadza się z plikiem, a dwa pobrania .txt są identyczne, suma jest nieaktualna
- * (blocklist.de publikuje listę i .md5 osobno) i przebieg idzie dalej.
+ * Gdy suma nie zgadza się z plikiem (CDN/origin publikują .txt i .md5 osobno), po kilku
+ * ponowieniach bierzemy ostatnią treść i oznaczamy MD5 jako nieaktualne — przebieg idzie dalej.
  */
 final class Klient
 {
@@ -97,6 +97,10 @@ final class Klient
 
         $poprzednie = $txt['body'];
         for ($i = 0; $i < 2; $i++) {
+            // Krótka przerwa tylko przy prawdziwym HTTP — CDN często dogania MD5 po chwili.
+            if ($this->http === null) {
+                usleep(250_000);
+            }
             $txt = $this->pobierzUrl(self::urlTxt($nazwa));
             if (! $txt['ok']) {
                 return $this->paraBlad($nazwa . '.txt: ' . $txt['error']);
@@ -118,13 +122,8 @@ final class Klient
             $poprzednie = $txt['body'];
         }
 
-        return [
-            'status'   => 'md5_niezgodne',
-            'blad'     => $nazwa . '.txt.md5 nie zgadza się z treścią',
-            'stare'    => false,
-            'ips'      => [],
-            'md5_brak' => false,
-        ];
+        // Lista wciąż się zmienia albo MD5 jest w tyle — nie przerywamy całego importu.
+        return $this->nieaktualneMd5($nazwa, $parser, $txt['body']);
     }
 
     /**
