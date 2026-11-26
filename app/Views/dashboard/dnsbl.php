@@ -98,8 +98,11 @@ $pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $
                 <tbody>
                 <?php if ($wiersze === []): ?>
                     <tr>
-                        <td colspan="6" class="text-body-secondary text-center py-4">
-                            Brak adresów IP znajdujących się obecnie na listach.
+                        <td colspan="6">
+                            <?= view('partials/_pusty_stan', [
+                                'tekst' => 'Brak adresów IP znajdujących się obecnie na listach.',
+                                'ikona' => 'bi-shield-check',
+                            ], ['saveData' => false]) ?>
                         </td>
                     </tr>
                 <?php else: ?>

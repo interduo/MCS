@@ -60,7 +60,10 @@ $asAsn       = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body pt-3">
             <?php if ($ostatnie === []): ?>
-                <p class="text-body-secondary mb-0">Brak incydentów w wybranym zakresie.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak incydentów w wybranym zakresie.',
+                    'ikona' => 'bi-shield-check',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

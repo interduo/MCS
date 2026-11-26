@@ -252,7 +252,14 @@ $statusPl  = [
                             </thead>
                             <tbody>
                             <?php if ($szcz['wiersze'] === []): ?>
-                                <tr><td colspan="4" class="text-center text-body-secondary py-4">Brak pozycji dla filtra „<?= esc($etykF[$filtr] ?? $filtr) ?>”.</td></tr>
+                                <tr>
+                                    <td colspan="4">
+                                        <?= view('partials/_pusty_stan', [
+                                            'tekst' => 'Brak pozycji dla filtra „' . ($etykF[$filtr] ?? $filtr) . '”.',
+                                            'ikona' => 'bi-funnel',
+                                        ], ['saveData' => false]) ?>
+                                    </td>
+                                </tr>
                             <?php endif; ?>
                             <?php foreach ($szcz['wiersze'] as $w): ?>
                                 <tr>

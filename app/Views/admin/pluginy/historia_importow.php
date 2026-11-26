@@ -95,7 +95,11 @@ $pokazWyczysc = isset($pokazWyczysc)
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body pt-3">
             <?php if (empty($importy)): ?>
-                <p class="text-body-secondary mb-0">Brak przebiegów spełniających kryteria.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak przebiegów spełniających kryteria.',
+                    'opis'  => 'Zmień filtry, aby rozszerzyć wyniki.',
+                    'ikona' => 'bi-clock-history',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

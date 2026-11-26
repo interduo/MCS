@@ -187,9 +187,14 @@ $pokazWyczysc = isset($pokazWyczysc)
             </div>
             <div class="col-12">
                 <p class="form-text mb-0">
-                    Próg: test trafia do KPI „wysycenie”, gdy pobieranie ≥ X <strong>lub</strong> wysyłanie ≥ Y Mb/s
-                    (0 = wyłącz stronę). Domyślnie 500 — wartość bliska wysyceniu względem spokojnego poziomu bazowego portu.
-                    Pole „wszystkie” pokazuje pełną listę pomiarów, zachowując progi do KPI.
+                    Progi określają pomiary wysycenia; wartość 0 wyłącza dany próg.
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline text-body-secondary"
+                            aria-label="Jak działają progi Speedtest"
+                            title="Pomiar trafia do KPI wysycenia, gdy pobieranie lub wysyłanie osiąga próg. Pole „Pokaż wszystkie pomiary” rozszerza listę, ale zachowuje progi KPI."
+                            data-bs-toggle="tooltip" data-bs-placement="top">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <span class="visually-hidden">Jak działają progi Speedtest</span>
+                    </button>
                 </p>
             </div>
         </form>
@@ -298,11 +303,12 @@ $pokazWyczysc = isset($pokazWyczysc)
         </div>
         <div class="card-body pt-3">
             <?php if (($anomalie['top_testy'] ?? []) === []): ?>
-                <p class="text-body-secondary mb-0">
-                    <?= $wszystkie
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => $wszystkie
                         ? 'Brak pomiarów w wybranym filtrze.'
-                        : 'Brak testów powyżej progów w wybranym oknie.' ?>
-                </p>
+                        : 'Brak testów powyżej progów w wybranym oknie.',
+                    'ikona' => 'bi-speedometer2',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -359,7 +365,10 @@ $pokazWyczysc = isset($pokazWyczysc)
         </div>
         <div class="card-body pt-3">
             <?php if (($anomalie['cidr_peaki'] ?? []) === []): ?>
-                <p class="text-body-secondary mb-0">Brak sieci /24 z testami powyżej progów.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak sieci /24 z testami powyżej progów.',
+                    'ikona' => 'bi-graph-up',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -407,7 +416,10 @@ $pokazWyczysc = isset($pokazWyczysc)
         </div>
         <div class="card-body pt-3">
             <?php if ($agregaty === []): ?>
-                <p class="text-body-secondary mb-0">Brak testów Speedtest w wybranym oknie.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak testów Speedtest w wybranym oknie.',
+                    'ikona' => 'bi-speedometer2',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -465,7 +477,10 @@ $pokazWyczysc = isset($pokazWyczysc)
         </div>
         <div class="card-body pt-3">
             <?php if ($dzienne === []): ?>
-                <p class="text-body-secondary mb-0">Brak danych dziennych w wybranym oknie.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak danych dziennych w wybranym oknie.',
+                    'ikona' => 'bi-calendar3',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

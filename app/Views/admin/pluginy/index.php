@@ -357,7 +357,10 @@ $etykietaZrodlaKlucza = static function (string $zrodlo): string {
         </div>
         <div class="card-body pt-3">
             <?php if (empty($importy)): ?>
-                <p class="text-body-secondary mb-0">Brak przebiegów importu.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak przebiegów importu.',
+                    'ikona' => 'bi-clock-history',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

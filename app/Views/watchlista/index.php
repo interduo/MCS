@@ -53,7 +53,11 @@
     </div>
     <div class="card-body pt-3">
         <?php if ($lista === []): ?>
-            <p class="text-body-secondary mb-0">Lista jest pusta.</p>
+            <?= view('partials/_pusty_stan', [
+                'tekst' => 'Watchlista jest pusta.',
+                'opis'  => 'Dodaj adres IP, aby uwzględnić go w digescie.',
+                'ikona' => 'bi-eye',
+            ], ['saveData' => false]) ?>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">

@@ -66,7 +66,11 @@ $asAsn          = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body pt-3">
             <?php if ($topIp === []): ?>
-                <p class="text-body-secondary mb-0">Brak IP spełniających filtry w wybranym oknie.</p>
+                <?= view('partials/_pusty_stan', [
+                    'tekst' => 'Brak adresów IP spełniających filtry.',
+                    'opis'  => 'Zmień kryteria lub rozszerz okno czasu.',
+                    'ikona' => 'bi-filter-circle',
+                ], ['saveData' => false]) ?>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

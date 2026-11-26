@@ -66,6 +66,7 @@
         .mcs-dzien-zrodla[open] .mcs-dzien-chevron { transform: rotate(180deg); }
         body { min-height: 100vh; display: flex; flex-direction: column; }
         main { flex: 1 0 auto; }
+        main h1.h3 { font-weight: 650; letter-spacing: -0.02em; }
         .mcs-filter-card .form-label {
             color: var(--bs-secondary-color);
             font-size: 0.8125rem;
