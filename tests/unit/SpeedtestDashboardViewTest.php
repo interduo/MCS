@@ -116,11 +116,11 @@ final class SpeedtestDashboardViewTest extends CIUnitTestCase
         $this->assertStringContainsString('Wysycenie portu', $html);
         $this->assertStringContainsString('Najcięższe testy', $html);
         $this->assertStringContainsString('sat-1', $html);
-        $this->assertStringContainsString('Sieci /24 z peakami', $html);
+        $this->assertStringContainsString('Sieci /24 ze szczytami', $html);
         $this->assertStringContainsString('Ookla anonimizuje', $html);
         $this->assertStringContainsString('Servers reporting', $html);
         $this->assertStringContainsString('IPv6', $html);
-        $this->assertStringContainsString('Down max', $html);
+        $this->assertStringContainsString('Pob. maks.', $html);
         $this->assertStringNotContainsString('min_upload_mbbs', $html);
         $this->assertStringNotContainsString('panel-speedtest', $html);
     }

@@ -76,9 +76,9 @@ $pokazWyczysc = isset($pokazWyczysc)
                        value="<?= esc((string) ($filtrDo ?? ''), 'attr') ?>">
             </div>
             <div class="col-12 col-md">
-                <label class="form-label mb-1" for="filtr-q">Szczegóły / msg</label>
+                <label class="form-label mb-1" for="filtr-q">Szczegóły / wiadomość</label>
                 <input type="search" class="form-control" id="filtr-q" name="q"
-                       placeholder="blad_text, id wiadomości, checksum…"
+                       placeholder="błąd, identyfikator wiadomości, suma kontrolna…"
                        value="<?= esc((string) ($filtrQ ?? ''), 'attr') ?>">
             </div>
             <div class="col-12 col-md-auto">

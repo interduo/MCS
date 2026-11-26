@@ -96,7 +96,7 @@ $asAsn          = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
                                 <td>
                                     <a class="font-monospace text-decoration-none" href="<?= $urlIp ?>"><?= esc($ipWiersz) ?></a>
                                     <?php if (! empty($wiersz['nowe'])): ?>
-                                        <span class="badge text-bg-success ms-1" title="Pierwszy raz w MCS w ostatnich <?= (int) ($noweDni ?? 7) ?> dniach">NEW</span>
+                                            <span class="badge text-bg-success ms-1" title="Pierwszy raz w MCS w ostatnich <?= (int) ($noweDni ?? 7) ?> dniach">NOWE</span>
                                     <?php endif; ?>
                                     <?php if (! empty($revDnsWlaczone) && ! empty($wiersz['rev_dns'])): ?>
                                         <div class="small text-body-secondary font-monospace"><?= esc((string) $wiersz['rev_dns']) ?></div>
@@ -154,7 +154,7 @@ $asAsn          = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
                         <?php if (! empty($tylkoNowe)): ?>
                             <a href="<?= site_url('dashboard/kolejka') ?>">pokaż wszystkie</a>
                         <?php else: ?>
-                            <a href="<?= site_url('dashboard/kolejka') ?>?nowe=1">tylko NEW (<?= (int) ($noweDni ?? 7) ?> dni)</a>
+                            <a href="<?= site_url('dashboard/kolejka') ?>?nowe=1">tylko nowe (<?= (int) ($noweDni ?? 7) ?> dni)</a>
                         <?php endif; ?>
                     </p>
                     <?php if (! empty($pager) && $listaTotal > (int) ($listaNaStrone ?? 25)): ?>

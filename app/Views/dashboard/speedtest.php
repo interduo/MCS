@@ -97,7 +97,7 @@ $pokazWyczysc = isset($pokazWyczysc)
         </nav>
         <h1 class="h3 mb-1">Speedtest — agregaty /24 i /48</h1>
         <p class="text-body-secondary mb-0">
-            Ookla <strong>Servers reporting</strong>: testy klientów AS<?= $asAsn ?> do Waszego serwera.
+            Raport Ookla <strong>Servers reporting</strong>: testy klientów AS<?= $asAsn ?> do Waszego serwera.
             Ookla anonimizuje adresy do /24 (IPv4) i /48 (IPv6).
         </p>
     </div>
@@ -128,13 +128,13 @@ $pokazWyczysc = isset($pokazWyczysc)
                 </select>
             </div>
             <div class="col-6 col-md-auto" style="min-width:8rem">
-                <label class="form-label mb-1" for="filtr-min-down">Min. download (Mb/s)</label>
+                <label class="form-label mb-1" for="filtr-min-down">Min. pobieranie (Mb/s)</label>
                 <input class="form-control" id="filtr-min-down" type="number" name="min_download_mbps"
                        min="0" max="100000" step="1" value="<?= $minDown ?>"
                        placeholder="np. 500" inputmode="numeric">
             </div>
             <div class="col-6 col-md-auto" style="min-width:8rem">
-                <label class="form-label mb-1" for="filtr-min-up">Min. upload (Mb/s)</label>
+                <label class="form-label mb-1" for="filtr-min-up">Min. wysyłanie (Mb/s)</label>
                 <input class="form-control" id="filtr-min-up" type="number" name="min_upload_mbps"
                        min="0" max="100000" step="1" value="<?= $minUp ?>"
                        placeholder="np. 500" inputmode="numeric">
@@ -148,8 +148,8 @@ $pokazWyczysc = isset($pokazWyczysc)
             <div class="col-6 col-md-auto">
                 <label class="form-label mb-1" for="filtr-sort">Sortuj</label>
                 <select class="form-select" id="filtr-sort" name="sort">
-                    <option value="download" <?= $sort === 'download' ? 'selected' : '' ?>>Download max</option>
-                    <option value="upload" <?= $sort === 'upload' ? 'selected' : '' ?>>Upload max</option>
+                    <option value="download" <?= $sort === 'download' ? 'selected' : '' ?>>Maks. pobieranie</option>
+                    <option value="upload" <?= $sort === 'upload' ? 'selected' : '' ?>>Maks. wysyłanie</option>
                     <option value="data" <?= $sort === 'data' ? 'selected' : '' ?>>Data</option>
                     <option value="testy" <?= $sort === 'testy' ? 'selected' : '' ?>>Liczba testów</option>
                 </select>
@@ -187,9 +187,9 @@ $pokazWyczysc = isset($pokazWyczysc)
             </div>
             <div class="col-12">
                 <p class="form-text mb-0">
-                    Próg: test trafia do KPI „wysycenie”, gdy download ≥ X <strong>lub</strong> upload ≥ Y Mb/s
-                    (0 = wyłącz stronę). Domyślnie 500 — typowe near-saturation względem cichego baseline’u portu.
-                    Checkbox „wszystkie” pokazuje pełną listę pomiarów, zachowując progi do KPI.
+                    Próg: test trafia do KPI „wysycenie”, gdy pobieranie ≥ X <strong>lub</strong> wysyłanie ≥ Y Mb/s
+                    (0 = wyłącz stronę). Domyślnie 500 — wartość bliska wysyceniu względem spokojnego poziomu bazowego portu.
+                    Pole „wszystkie” pokazuje pełną listę pomiarów, zachowując progi do KPI.
                 </p>
             </div>
         </form>
@@ -243,7 +243,7 @@ $pokazWyczysc = isset($pokazWyczysc)
                     <i class="bi bi-download fs-5" aria-hidden="true"></i>
                 </div>
                 <div>
-                    <div class="text-body-secondary small">Download śr. / p50</div>
+                    <div class="text-body-secondary small">Pobieranie śr. / p50</div>
                     <div class="fs-5 fw-semibold lh-1 mt-1">
                         <?= esc($mbps($kpi['avg_download_kbps'] ?? null)) ?>
                         <span class="text-body-secondary fw-normal small">/</span>
@@ -260,7 +260,7 @@ $pokazWyczysc = isset($pokazWyczysc)
                     <i class="bi bi-upload fs-5" aria-hidden="true"></i>
                 </div>
                 <div>
-                    <div class="text-body-secondary small">Upload śr. / p50</div>
+                    <div class="text-body-secondary small">Wysyłanie śr. / p50</div>
                     <div class="fs-5 fw-semibold lh-1 mt-1">
                         <?= esc($mbps($kpi['avg_upload_kbps'] ?? null)) ?>
                         <span class="text-body-secondary fw-normal small">/</span>
@@ -310,8 +310,8 @@ $pokazWyczysc = isset($pokazWyczysc)
                         <tr>
                             <th scope="col">Czas</th>
                             <th scope="col">Sieć /24</th>
-                            <th scope="col" class="text-end">Download</th>
-                            <th scope="col" class="text-end">Upload</th>
+                            <th scope="col" class="text-end">Pobieranie</th>
+                            <th scope="col" class="text-end">Wysyłanie</th>
                             <th scope="col" class="text-end">Ping</th>
                             <th scope="col">Test ID</th>
                         </tr>
@@ -352,9 +352,9 @@ $pokazWyczysc = isset($pokazWyczysc)
 <section class="mb-4">
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
-            <h2 class="h5 mb-1">Sieci /24 z peakami</h2>
+            <h2 class="h5 mb-1">Sieci /24 ze szczytami</h2>
             <p class="text-body-secondary small mb-0">
-                Max vs średnia w oknie — wysoki stosunek peak/avg sugeruje krótkie wysycenie jak na LibreNMS.
+                Maksimum względem średniej w oknie — wysoki stosunek szczytu do średniej sugeruje krótkie wysycenie jak na LibreNMS.
             </p>
         </div>
         <div class="card-body pt-3">
@@ -368,12 +368,12 @@ $pokazWyczysc = isset($pokazWyczysc)
                             <th scope="col">Sieć /24</th>
                             <th scope="col" class="text-end">Powyżej</th>
                             <th scope="col" class="text-end">Testy</th>
-                            <th scope="col" class="text-end">Down max</th>
-                            <th scope="col" class="text-end">Down śr.</th>
-                            <th scope="col" class="text-end">Peak↓</th>
-                            <th scope="col" class="text-end">Up max</th>
-                            <th scope="col" class="text-end">Up śr.</th>
-                            <th scope="col" class="text-end">Peak↑</th>
+                            <th scope="col" class="text-end">Pob. maks.</th>
+                            <th scope="col" class="text-end">Pob. śr.</th>
+                            <th scope="col" class="text-end">Szczyt ↓</th>
+                            <th scope="col" class="text-end">Wysł. maks.</th>
+                            <th scope="col" class="text-end">Wysł. śr.</th>
+                            <th scope="col" class="text-end">Szczyt ↑</th>
                             <th scope="col">Ostatni</th>
                         </tr>
                         </thead>
@@ -415,14 +415,14 @@ $pokazWyczysc = isset($pokazWyczysc)
                         <tr>
                             <th scope="col">Sieć /24</th>
                             <th scope="col" class="text-end">Testy</th>
-                            <th scope="col" class="text-end">Down max</th>
-                            <th scope="col" class="text-end">Down śr.</th>
-                            <th scope="col" class="text-end">Down p50</th>
-                            <th scope="col" class="text-end">Peak↓</th>
-                            <th scope="col" class="text-end">Up max</th>
-                            <th scope="col" class="text-end">Up śr.</th>
-                            <th scope="col" class="text-end">Up p50</th>
-                            <th scope="col" class="text-end">Peak↑</th>
+                            <th scope="col" class="text-end">Pob. maks.</th>
+                            <th scope="col" class="text-end">Pob. śr.</th>
+                            <th scope="col" class="text-end">Pob. p50</th>
+                            <th scope="col" class="text-end">Szczyt ↓</th>
+                            <th scope="col" class="text-end">Wysł. maks.</th>
+                            <th scope="col" class="text-end">Wysł. śr.</th>
+                            <th scope="col" class="text-end">Wysł. p50</th>
+                            <th scope="col" class="text-end">Szczyt ↑</th>
                             <th scope="col" class="text-end">Ping śr.</th>
                             <th scope="col">Ostatni test</th>
                         </tr>
@@ -473,8 +473,8 @@ $pokazWyczysc = isset($pokazWyczysc)
                         <tr>
                             <th scope="col">Dzień</th>
                             <th scope="col" class="text-end">Testy</th>
-                            <th scope="col" class="text-end">Down śr.</th>
-                            <th scope="col" class="text-end">Up śr.</th>
+                            <th scope="col" class="text-end">Pob. śr.</th>
+                            <th scope="col" class="text-end">Wysł. śr.</th>
                             <th scope="col" class="text-end">Ping śr.</th>
                         </tr>
                         </thead>

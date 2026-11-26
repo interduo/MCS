@@ -92,7 +92,7 @@ $asAsn       = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
                                     <?php if ($ipWiersz !== ''): ?>
                                         <a class="font-monospace text-decoration-none" href="<?= site_url('ip/' . $ipWiersz) ?>"><?= esc($ipWiersz) ?></a>
                                         <?php if (! empty($wiersz['nowe'])): ?>
-                                            <span class="badge text-bg-success ms-1" title="Pierwszy raz w MCS w ostatnich dniach">NEW</span>
+                                            <span class="badge text-bg-success ms-1" title="Pierwszy raz w MCS w ostatnich dniach">NOWE</span>
                                         <?php endif; ?>
                                     <?php else: ?>
                                         —

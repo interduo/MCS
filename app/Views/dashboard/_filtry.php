@@ -94,7 +94,7 @@ $filtrCidr      = (string) ($filtrCidr ?? '');
                 <div class="col-12 col-md-auto">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="filtr-nowe" name="nowe" value="1" <?= $tylkoNowe ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="filtr-nowe">Tylko NEW (<?= (int) ($noweDni ?? 7) ?> dni)</label>
+                        <label class="form-check-label" for="filtr-nowe">Tylko nowe (<?= (int) ($noweDni ?? 7) ?> dni)</label>
                     </div>
                 </div>
             <?php endif; ?>

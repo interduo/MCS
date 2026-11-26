@@ -132,7 +132,7 @@ final class PluginyViewTest extends CIUnitTestCase
         $this->assertStringContainsString('>Nazwa</th>', $html);
         $this->assertStringContainsString('>Import</th>', $html);
         $this->assertStringContainsString('>UI</th>', $html);
-        $this->assertStringContainsString('>Ostatni update</th>', $html);
+        $this->assertStringContainsString('>Ostatnia aktualizacja</th>', $html);
         $this->assertStringContainsString('>Status</th>', $html);
         $this->assertStringContainsString('>Akcje</th>', $html);
         $this->assertStringContainsString('>aktywny</button>', $html);

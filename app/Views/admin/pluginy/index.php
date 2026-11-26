@@ -38,7 +38,7 @@
                         <th scope="col">Nazwa</th>
                         <th scope="col" title="Kliknij stan, żeby włączyć lub wstrzymać pobieranie (cron i Pobierz teraz).">Import</th>
                         <th scope="col" title="Kliknij, żeby pokazać lub ukryć źródło w listach i badge.">UI</th>
-                        <th scope="col" class="text-nowrap">Ostatni update</th>
+                        <th scope="col" class="text-nowrap">Ostatnia aktualizacja</th>
                         <th scope="col" title="Najedź, żeby zobaczyć komunikat.">Status</th>
                         <th scope="col" class="pe-3">Akcje</th>
                     </tr>

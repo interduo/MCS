@@ -28,7 +28,7 @@ $pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $
 
 <?= $this->include('dashboard/_dnsbl_skaner') ?>
 
-<h2 class="h5 mt-5 mb-3">Skan cron (UCEPROTECT L1, SpamCop, DroneBL) — cache enrichment</h2>
+<h2 class="h5 mt-5 mb-3">Skan cykliczny (UCEPROTECT L1, SpamCop, DroneBL) — pamięć podręczna</h2>
 
 <?php if (! empty($blad)): ?>
     <div class="alert alert-danger border-0 shadow-sm rounded-3" role="alert"><?= esc((string) $blad) ?></div>
@@ -38,7 +38,7 @@ $pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $
     <div class="col-sm-6 col-lg-3">
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-body">
-                <div class="text-body-secondary small mb-1">Listed IP</div>
+                <div class="text-body-secondary small mb-1">IP na listach</div>
                 <div class="fs-3 fw-semibold"><?= (int) ($kpi['listed'] ?? 0) ?></div>
             </div>
         </div>
@@ -91,7 +91,7 @@ $pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $
                         <th scope="col">Listy</th>
                         <th scope="col">LMS</th>
                         <th scope="col">Zakres skanu</th>
-                        <th scope="col">Checked at</th>
+                        <th scope="col">Sprawdzono</th>
                         <th scope="col" class="pe-3">Spamhaus</th>
                     </tr>
                 </thead>
@@ -99,7 +99,7 @@ $pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $
                 <?php if ($wiersze === []): ?>
                     <tr>
                         <td colspan="6" class="text-body-secondary text-center py-4">
-                            Brak aktualnie listed IP w cache.
+                            Brak adresów IP znajdujących się obecnie na listach.
                         </td>
                     </tr>
                 <?php else: ?>
@@ -129,8 +129,8 @@ $pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $
                                 <a class="btn btn-sm btn-outline-secondary"
                                    href="https://check.spamhaus.org/results/?query=<?= rawurlencode($ipW) ?>"
                                    target="_blank" rel="noopener noreferrer"
-                                   title="Spamhaus Check">
-                                    Check
+                                   title="Sprawdź w Spamhaus">
+                                    Sprawdź
                                 </a>
                             </td>
                         </tr>
