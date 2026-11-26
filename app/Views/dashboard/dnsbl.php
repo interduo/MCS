@@ -7,7 +7,7 @@ $wiersze = is_array($wiersze ?? null) ? $wiersze : [];
 $lista   = (string) ($lista ?? '');
 $cidr    = (string) ($cidr ?? '');
 $blad    = $blad ?? null;
-$asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">

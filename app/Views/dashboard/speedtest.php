@@ -13,7 +13,7 @@ $filtry = is_array($filtry ?? null) ? $filtry : [
     'wszystkie'         => false,
 ];
 $okno     = (int) ($filtry['okno'] ?? 7);
-$asAsn    = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$asAsn    = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
 $kpi      = is_array($kpi ?? null) ? $kpi : [];
 $agregaty = is_array($agregaty ?? null) ? $agregaty : [];
 $dzienne  = is_array($dzienne ?? null) ? $dzienne : [];

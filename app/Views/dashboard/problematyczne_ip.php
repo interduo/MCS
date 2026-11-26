@@ -14,7 +14,7 @@ $badgeWaga = static function (string $waga): string {
 $queryEksport = (string) ($queryEksport ?? 'okno=' . (int) $okno);
 $listaTotal   = (int) ($listaTotal ?? 0);
 $pagerQuery   = ['okno', 'zrodlo', 'ip', 'waga', 'min_zrodel', 'kategoria', 'port', 'cidr', 'podsiec'];
-$asAsn        = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$asAsn        = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">

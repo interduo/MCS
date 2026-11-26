@@ -26,8 +26,8 @@ final class BlocklistDeSerwisTest extends CIUnitTestCase
         $this->zapytania = 0;
         $this->utworzTabele();
         $this->db->table('mcs_ustawienia')->insertBatch([
-            ['klucz' => 'as198050_wlaczone', 'wartosc' => '1', 'updated_at' => '2026-01-01T00:00:00+00:00'],
-            ['klucz' => 'as198050_cidry', 'wartosc' => '91.231.80.0/22', 'updated_at' => '2026-01-01T00:00:00+00:00'],
+            ['klucz' => 'as_wlaczone', 'wartosc' => '1', 'updated_at' => '2026-01-01T00:00:00+00:00'],
+            ['klucz' => 'as_cidry', 'wartosc' => '91.231.80.0/22', 'updated_at' => '2026-01-01T00:00:00+00:00'],
         ]);
         $this->ustawEnv('mcs.blocklistDe.listy', 'ssh,strongips');
     }
@@ -103,7 +103,7 @@ final class BlocklistDeSerwisTest extends CIUnitTestCase
 
     public function testBrakPrefiksowNieSiegaPoHttp(): void
     {
-        $this->db->table('mcs_ustawienia')->where('klucz', 'as198050_cidry')->update(['wartosc' => '']);
+        $this->db->table('mcs_ustawienia')->where('klucz', 'as_cidry')->update(['wartosc' => '']);
         $przed = $this->zapytania;
         $wynik = $this->serwis(['ssh' => "91.231.80.9\n", 'strongips' => ''])->uruchom();
 

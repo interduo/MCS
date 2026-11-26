@@ -17,7 +17,7 @@ $pagerQuery   = ['okno', 'zrodlo', 'ip', 'waga', 'min_zrodel', 'kategoria', 'por
 $kolejkaMinWaga = \App\Libraries\KolejkaDnia::minWaga();
 $kolejkaWagi    = array_slice(['low', 'medium', 'high', 'critical'], (int) array_search($kolejkaMinWaga, ['low', 'medium', 'high', 'critical'], true));
 $kolejkaGodzin  = (int) $okno * 24;
-$asAsn          = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$asAsn          = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">

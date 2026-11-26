@@ -17,7 +17,7 @@ $trend     = is_array($sk['trend'] ?? null) ? $sk['trend'] : [];
 $trwa      = $skan !== null && in_array($skan['status'], ['oczekuje', 'w_toku'], true);
 $gotowy    = $skan !== null && $skan['status'] === 'zakonczony';
 $urlBaza   = site_url('dashboard/dnsbl');
-$asAsn     = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$asAsn     = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
 $statusPl  = [
     'ok' => 'OK', 'wylaczona_test' => 'wyłączona (test kontrolny)', 'przerwana' => 'przerwana (kod błędu)',
     'oczekuje' => 'oczekuje', 'w_toku' => 'w toku', 'zakonczony' => 'zakończony', 'blad' => 'błąd',
@@ -44,7 +44,7 @@ $statusPl  = [
                        pattern="[0-9./,; ]+" maxlength="400"
                        value="<?= esc((string) old('zakres', $skan['zakres'] ?? '')) ?>" placeholder="np. 91.231.70.0/23 albo 91.231.70.187">
                 <div class="form-text">
-                    Prefiksy z ustawień (as198050_cidry):
+                    Prefiksy z ustawień (as_cidry):
                     <span class="font-monospace"><?= esc(implode(', ', $prefiksy)) ?></span>.
                     Wynik jest ważny 6 h (cache).
                     Limit: <?= (int) \App\Libraries\Dnsbl\LimitySkanuWww::maksIp() ?> IP na skan,

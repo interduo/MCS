@@ -11,7 +11,7 @@ $badgeWaga = static function (string $waga): string {
         default => 'text-bg-light text-dark border',
     };
 };
-$asAsn = (int) ($asAsn ?? \App\Libraries\Siec\As198050Matcher::asn());
+$asAsn = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
 $wtyczki = array_merge(
     ['lms' => true, 'abuseipdb' => true, 'ismalicious' => true, 'greynoise' => true, 'spamrats' => true, 'speedtest' => true],
     is_array($wtyczkiIp ?? null) ? $wtyczkiIp : [],
