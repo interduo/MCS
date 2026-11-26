@@ -49,7 +49,7 @@ final class DnsblSkanerViewTest extends CIUnitTestCase
             $this->assertStringContainsString($t, $html);
         }
         $this->assertStringContainsString('aria-label="Zastosuj filtry"', $html);
-        $this->assertStringContainsString('aria-label="Wyczyść filtry"', $html);
+        $this->assertStringNotContainsString('aria-label="Wyczyść filtry"', $html);
         $this->assertStringContainsString('bl.shtml&#x3F;91.231.70.1', $html);
         $this->assertStringNotContainsString('dnsbl-postep-bar', $html);
     }

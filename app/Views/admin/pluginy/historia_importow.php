@@ -1,6 +1,16 @@
 <?= $this->extend('layouts/mcs') ?>
 <?= $this->section('content') ?>
 
+<?php
+$pokazWyczysc = isset($pokazWyczysc)
+    ? (bool) $pokazWyczysc
+    : trim((string) ($filtrZrodlo ?? '')) !== ''
+        || trim((string) ($filtrStatus ?? '')) !== ''
+        || trim((string) ($filtrQ ?? '')) !== ''
+        || trim((string) ($filtrOd ?? '')) !== ''
+        || trim((string) ($filtrDo ?? '')) !== '';
+?>
+
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
         <nav aria-label="Okruszki" class="mb-2">
@@ -73,7 +83,8 @@
             </div>
             <div class="col-12 col-md-auto">
                 <?= view('partials/_akcje_filtrow', [
-                    'wyczyscHref' => site_url('admin/pluginy/historia-importow'),
+                    'wyczyscHref'  => site_url('admin/pluginy/historia-importow'),
+                    'pokazWyczysc' => $pokazWyczysc,
                 ], ['saveData' => false]) ?>
             </div>
         </form>

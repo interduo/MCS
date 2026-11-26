@@ -236,13 +236,14 @@ class Dashboard extends BaseController
         $blad = $blad === [] ? null : 'Nie udało się pobrać sekcji: ' . implode(', ', $blad) . '.';
 
         return view('dashboard/speedtest', $this->daneWidoku('speedtest', [
-            'filtry'   => $filtry,
-            'okno'     => $filtry['okno'],
-            'blad'     => $blad,
-            'kpi'      => $kpi,
-            'agregaty' => $agregaty,
-            'dzienne'  => $dzienne,
-            'anomalie' => $anomalie,
+            'filtry'         => $filtry,
+            'pokazWyczysc'   => $filtry !== SpeedtestSerwis::parsujFiltry([]),
+            'okno'           => $filtry['okno'],
+            'blad'           => $blad,
+            'kpi'            => $kpi,
+            'agregaty'       => $agregaty,
+            'dzienne'        => $dzienne,
+            'anomalie'       => $anomalie,
         ]));
     }
 
@@ -316,12 +317,13 @@ class Dashboard extends BaseController
         ];
 
         return view('dashboard/dnsbl', $this->daneWidoku('dnsbl', [
-            'blad'   => $blad,
-            'kpi'    => $kpi,
-            'wiersze'=> $wiersze,
-            'lista'  => $lista,
-            'cidr'   => $cidr,
-            'skaner' => $this->daneSkanera(),
+            'blad'         => $blad,
+            'kpi'          => $kpi,
+            'wiersze'      => $wiersze,
+            'lista'        => $lista,
+            'cidr'         => $cidr,
+            'pokazWyczysc' => $lista !== '' || $cidr !== '',
+            'skaner'       => $this->daneSkanera(),
         ]));
     }
 
@@ -757,10 +759,11 @@ class Dashboard extends BaseController
      */
     private function daneFiltrow(array $ctx, string $sciezka): array
     {
-        $filtry    = $ctx['filtry'];
-        $akcja     = site_url($sciezka);
-        $podsieci  = is_array($ctx['podsieciAs'] ?? null) ? $ctx['podsieciAs'] : [];
-        $formularz = (new DashboardFiltry())->doFormularza($filtry, $podsieci);
+        $filtry       = $ctx['filtry'];
+        $akcja        = site_url($sciezka);
+        $podsieci     = is_array($ctx['podsieciAs'] ?? null) ? $ctx['podsieciAs'] : [];
+        $filtryHelper = new DashboardFiltry();
+        $formularz    = $filtryHelper->doFormularza($filtry, $podsieci);
 
         return [
             'okno'            => $filtry['okno'],
@@ -780,6 +783,7 @@ class Dashboard extends BaseController
             'queryEksport'    => $ctx['queryEksport'],
             'formAkcja'       => $akcja,
             'wyczyscHref'     => $akcja . '?wyczysc=1',
+            'pokazWyczysc'    => $filtryHelper->czyAktywne($filtry),
         ];
     }
 

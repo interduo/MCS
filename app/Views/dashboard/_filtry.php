@@ -99,7 +99,10 @@ $filtrCidr      = (string) ($filtrCidr ?? '');
                 </div>
             <?php endif; ?>
             <div class="col-12 col-md-auto">
-                <?= view('partials/_akcje_filtrow', ['wyczyscHref' => $wyczyscHref], ['saveData' => false]) ?>
+                <?= view('partials/_akcje_filtrow', [
+                    'wyczyscHref'  => $wyczyscHref,
+                    'pokazWyczysc' => (bool) ($pokazWyczysc ?? true),
+                ], ['saveData' => false]) ?>
             </div>
         </form>
     </div>

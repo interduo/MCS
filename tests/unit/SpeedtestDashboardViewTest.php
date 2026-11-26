@@ -96,7 +96,7 @@ final class SpeedtestDashboardViewTest extends CIUnitTestCase
 
         $this->assertStringContainsString('Speedtest', $html);
         $this->assertStringContainsString('aria-label="Zastosuj filtry"', $html);
-        $this->assertStringContainsString('aria-label="Wyczyść filtry"', $html);
+        $this->assertStringNotContainsString('aria-label="Wyczyść filtry"', $html);
         $this->assertStringContainsString('Agregaty /24', $html);
         $this->assertStringContainsString('91.231.80.0/24', $html);
         $this->assertStringContainsString('Unikalne /24·/48', $html);

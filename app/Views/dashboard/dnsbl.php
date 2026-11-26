@@ -8,6 +8,7 @@ $lista   = (string) ($lista ?? '');
 $cidr    = (string) ($cidr ?? '');
 $blad    = $blad ?? null;
 $asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
+$pokazWyczysc = isset($pokazWyczysc) ? (bool) $pokazWyczysc : $lista !== '' || $cidr !== '';
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -72,7 +73,8 @@ $asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
             </div>
             <div class="col-md-4">
                 <?= view('partials/_akcje_filtrow', [
-                    'wyczyscHref' => site_url('dashboard/dnsbl'),
+                    'wyczyscHref'  => site_url('dashboard/dnsbl'),
+                    'pokazWyczysc' => $pokazWyczysc,
                 ], ['saveData' => false]) ?>
             </div>
         </div>

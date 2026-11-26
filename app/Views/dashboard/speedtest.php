@@ -82,6 +82,9 @@ $presetHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
 $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
     'top_n' => min(500, max(100, $topN * 2)),
 ]));
+$pokazWyczysc = isset($pokazWyczysc)
+    ? (bool) $pokazWyczysc
+    : $filtry !== \App\Libraries\Enrichment\SpeedtestSerwis::parsujFiltry([]);
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -152,7 +155,10 @@ $wiecejHref  = $formAkcja . '?' . http_build_query(array_merge($queryBaza, [
                 </select>
             </div>
             <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
-                <?= view('partials/_akcje_filtrow', ['wyczyscHref' => $wyczyscHref], ['saveData' => false]) ?>
+                <?= view('partials/_akcje_filtrow', [
+                    'wyczyscHref'  => $wyczyscHref,
+                    'pokazWyczysc' => $pokazWyczysc,
+                ], ['saveData' => false]) ?>
                 <a class="btn btn-outline-primary" href="<?= esc($presetHref) ?>">
                     <i class="bi bi-speedometer2 me-1" aria-hidden="true"></i>Preset ≥900
                 </a>
