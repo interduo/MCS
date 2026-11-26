@@ -96,7 +96,7 @@
         </div>
         <div class="card-body">
             <p class="card-text text-body-secondary">
-                Na pierwsze wejście i po kliknięciu <strong>Wyczyść</strong>.
+                Używane przy pierwszym wejściu i po wyczyszczeniu filtrów.
             </p>
 
             <div class="row g-3">

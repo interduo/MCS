@@ -52,10 +52,11 @@ $asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
     </div>
 </div>
 
-<form class="card border-0 shadow-sm rounded-3 mb-4" method="get" action="<?= site_url('dashboard/dnsbl') ?>">
+<form class="card border-0 shadow-sm rounded-3 mb-4 mcs-filter-card" method="get"
+      action="<?= site_url('dashboard/dnsbl') ?>" aria-label="Filtry DNSBL">
     <div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-md-4">
+            <div class="col-12 col-md-4">
                 <label class="form-label" for="dnsbl-lista">Lista</label>
                 <select class="form-select" id="dnsbl-lista" name="lista">
                     <option value="">Wszystkie</option>
@@ -69,9 +70,10 @@ $asAsn   = (int) ($asAsn ?? \App\Libraries\Siec\AsMatcher::asn());
                 <input class="form-control font-monospace" id="dnsbl-cidr" type="text" name="cidr"
                        value="<?= esc($cidr) ?>" placeholder="np. 91.231.80.0/22">
             </div>
-            <div class="col-md-4 d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Filtruj</button>
-                <a class="btn btn-outline-secondary" href="<?= site_url('dashboard/dnsbl') ?>">Wyczyść</a>
+            <div class="col-md-4">
+                <?= view('partials/_akcje_filtrow', [
+                    'wyczyscHref' => site_url('dashboard/dnsbl'),
+                ], ['saveData' => false]) ?>
             </div>
         </div>
     </div>

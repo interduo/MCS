@@ -6,7 +6,7 @@ $podsieciAs     = is_array($podsieciAs ?? null) ? $podsieciAs : [];
 $filtrPodsiec   = isset($filtrPodsiec) && is_string($filtrPodsiec) ? $filtrPodsiec : null;
 $filtrCidr      = (string) ($filtrCidr ?? '');
 ?>
-<div class="card border-0 shadow-sm rounded-3 mb-4">
+<div class="card border-0 shadow-sm rounded-3 mb-4 mcs-filter-card">
     <div class="card-body">
         <form class="row g-3 align-items-end" method="get" action="<?= esc($formAkcja) ?>" aria-label="Filtry przeglądu">
             <div class="col-6 col-md-auto">
@@ -98,11 +98,8 @@ $filtrCidr      = (string) ($filtrCidr ?? '');
                     </div>
                 </div>
             <?php endif; ?>
-            <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtruj
-                </button>
-                <a class="btn btn-outline-secondary" href="<?= esc($wyczyscHref) ?>">Wyczyść</a>
+            <div class="col-12 col-md-auto">
+                <?= view('partials/_akcje_filtrow', ['wyczyscHref' => $wyczyscHref], ['saveData' => false]) ?>
             </div>
         </form>
     </div>

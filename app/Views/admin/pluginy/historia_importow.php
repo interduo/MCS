@@ -18,7 +18,7 @@
     </a>
 </div>
 
-<div class="card border-0 shadow-sm rounded-3 mb-4">
+<div class="card border-0 shadow-sm rounded-3 mb-4 mcs-filter-card">
     <div class="card-body">
         <form class="row g-3 align-items-end" method="get"
               action="<?= site_url('admin/pluginy/historia-importow') ?>"
@@ -71,11 +71,10 @@
                        placeholder="blad_text, id wiadomości, checksum…"
                        value="<?= esc((string) ($filtrQ ?? ''), 'attr') ?>">
             </div>
-            <div class="col-auto d-flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary">Filtruj</button>
-                <a href="<?= site_url('admin/pluginy/historia-importow') ?>" class="btn btn-outline-secondary">
-                    Wyczyść
-                </a>
+            <div class="col-12 col-md-auto">
+                <?= view('partials/_akcje_filtrow', [
+                    'wyczyscHref' => site_url('admin/pluginy/historia-importow'),
+                ], ['saveData' => false]) ?>
             </div>
         </form>
     </div>

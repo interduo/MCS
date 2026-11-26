@@ -241,7 +241,10 @@ final class PluginyViewTest extends CIUnitTestCase
         ]);
 
         $this->assertStringContainsString('Historia importów', $html);
-        $this->assertStringContainsString('Filtruj', $html);
+        $this->assertStringContainsString('aria-label="Zastosuj filtry"', $html);
+        $this->assertStringContainsString('aria-label="Wyczyść filtry"', $html);
+        $this->assertStringNotContainsString('>Filtruj<', $html);
+        $this->assertStringNotContainsString('>Wyczyść<', $html);
         $this->assertStringContainsString('name="zrodlo"', $html);
         $this->assertStringContainsString('name="status"', $html);
         $this->assertStringContainsString('name="q"', $html);

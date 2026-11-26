@@ -66,6 +66,27 @@
         .mcs-dzien-zrodla[open] .mcs-dzien-chevron { transform: rotate(180deg); }
         body { min-height: 100vh; display: flex; flex-direction: column; }
         main { flex: 1 0 auto; }
+        .mcs-filter-card .form-label {
+            color: var(--bs-secondary-color);
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+        .mcs-filter-actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.75rem;
+            min-height: 2.75rem;
+        }
+        @media (max-width: 991.98px) {
+            .mcs-nav-akcje { width: 100%; }
+            .mcs-nav-akcje > form:first-child,
+            .mcs-nav-akcje > form:first-child .input-group { width: 100%; }
+            .mcs-nav-akcje > form:first-child .form-control {
+                flex: 1 1 auto;
+                width: 1%;
+            }
+        }
         /* Link poza aplikacją (nowa karta): mała ikona za tekstem. */
         a[target="_blank"]::after {
             content: "\f1c5";
