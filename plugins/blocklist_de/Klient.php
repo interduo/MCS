@@ -230,28 +230,22 @@ final class Klient
             return ['ok' => false, 'http_code' => 0, 'body' => '', 'error' => 'niedozwolony URL listy'];
         }
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_CONNECTTIMEOUT => min(15, $this->timeout),
-            CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_USERAGENT      => self::USER_AGENT,
-            CURLOPT_HTTPHEADER     => ['Accept: text/plain'],
+        $res = \App\Libraries\Siec\KlientHttp::wykonaj($url, [
+            'timeout'    => max(\App\Libraries\Siec\KlientHttp::MAKS_CZAS_POBRANIA, $this->timeout),
+            'polaczenie' => min(15, $this->timeout),
+            'zastoj'     => $this->timeout,
+            'kompresja'  => true,
+            'user_agent' => self::USER_AGENT,
+            'naglowki'   => ['Accept: text/plain'],
         ]);
-        $out  = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err  = curl_error($ch);
-        curl_close($ch);
 
-        if ($out === false) {
-            return ['ok' => false, 'http_code' => $code, 'body' => '', 'error' => 'cURL: ' . $err];
+        if (! $res['ok']) {
+            return ['ok' => false, 'http_code' => $res['http_code'], 'body' => '', 'error' => 'cURL: ' . $res['error']];
         }
-        if ($code !== 200) {
-            return ['ok' => false, 'http_code' => $code, 'body' => '', 'error' => 'HTTP ' . $code];
+        if ($res['http_code'] !== 200) {
+            return ['ok' => false, 'http_code' => $res['http_code'], 'body' => '', 'error' => 'HTTP ' . $res['http_code']];
         }
 
-        return ['ok' => true, 'http_code' => 200, 'body' => (string) $out, 'error' => ''];
+        return ['ok' => true, 'http_code' => 200, 'body' => $res['body'], 'error' => ''];
     }
 }
