@@ -108,9 +108,7 @@ final class BotnetClTest extends CIUnitTestCase
         $_ENV['mcs.botnet_cl.asn'] = '52079';
         $_SERVER['mcs.botnet_cl.asn'] = '52079';
 
-        $html = (string) file_get_contents('/tmp/botnet-52079.html');
-        if ($html === '' || ! str_contains($html, 'Recent observations')) {
-            $html = <<<'HTML'
+        $html = <<<'HTML'
             <h2>Recent observations</h2><ul>
             <li><a href="/attack/cc85f439-7a2b-4882-86c8-fa6f0fab2e38">
             <time dateTime="2026-11-20T19:28:09.628Z"></time>
@@ -120,7 +118,6 @@ final class BotnetClTest extends CIUnitTestCase
             </a></li>
             </ul>
             HTML;
-        }
 
         $klient = new Klient(static fn (): array => ['ok' => true, 'http_code' => 200, 'body' => $html, 'error' => '']);
         $wynik  = (new Serwis($klient))->uruchom();
