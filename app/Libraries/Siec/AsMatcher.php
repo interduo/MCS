@@ -12,13 +12,14 @@ use App\Models\UstawieniaModel;
  */
 final class AsMatcher
 {
-    public const DOMYSLNY_ASN = 198050;
+    /** ASN dokumentacyjny z RFC 5398 — przykład, nie numer operatora. */
+    public const DOMYSLNY_ASN = 64496;
 
     public const KLUCZ_WLACZONE = 'as_wlaczone';
 
     public const KLUCZ_CIDRY = 'as_cidry';
 
-    /** Prefiksy ogłoszone przez DOMYSLNY_ASN (RIPE, stan 2026-09) — seed / fallback. */
+    /** Przykładowa lista prefiksów (RIPE, stan 2026-09) — seed i fallback, gdy brak as_cidry. */
     public const DOMYSLNE_CIDRY = [
         '5.253.230.0/24',
         '64.46.124.0/24',
@@ -48,7 +49,7 @@ final class AsMatcher
     }
 
     /**
-     * ASN globalny (opcja mcs.as.asn: DB → .env → 198050).
+     * ASN globalny (opcja mcs.as.asn: DB → .env → DOMYSLNY_ASN).
      */
     public static function asn(): int
     {

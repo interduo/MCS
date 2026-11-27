@@ -52,7 +52,7 @@ final class OpcjeMcs
 
         // --- Sieć / AS ---
         $d['mcs.as.asn'] = [
-            'grupa' => 'Sieć / AS', 'etykieta' => 'ASN globalny („nasze IP”, domyślny dla pluginów)', 'typ' => 'asn', 'domyslna' => '198050',
+            'grupa' => 'Sieć / AS', 'etykieta' => 'ASN globalny („nasze IP”, domyślny dla pluginów)', 'typ' => 'asn', 'domyslna' => (string) \App\Libraries\Siec\AsMatcher::DOMYSLNY_ASN,
             'env_dawny' => 'mcs.as198050.asn',
         ];
         $d['mcs.revDns.cacheTtl'] = [

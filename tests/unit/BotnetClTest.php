@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Siec\AsMatcher;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use McsPluginy\botnet_cl\Dopasowanie;
@@ -105,8 +106,8 @@ final class BotnetClTest extends CIUnitTestCase
             ['klucz' => 'as_wlaczone', 'wartosc' => '1', 'updated_at' => '2026-01-01T00:00:00+00:00'],
             ['klucz' => 'as_cidry', 'wartosc' => '46.151.184.0/21', 'updated_at' => '2026-01-01T00:00:00+00:00'],
         ]);
-        $_ENV['mcs.botnet_cl.asn'] = '52079';
-        $_SERVER['mcs.botnet_cl.asn'] = '52079';
+        $_ENV['mcs.botnet_cl.asn'] = (string) AsMatcher::DOMYSLNY_ASN;
+        $_SERVER['mcs.botnet_cl.asn'] = (string) AsMatcher::DOMYSLNY_ASN;
 
         $html = <<<'HTML'
             <h2>Recent observations</h2><ul>
