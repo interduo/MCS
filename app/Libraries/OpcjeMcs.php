@@ -267,7 +267,6 @@ final class OpcjeMcs
 
         // --- Cloudflare / Spoofer ---
         $d['mcs.cloudflare_botnet.asn'] = $asnPlugin('Cloudflare Botnet');
-        $d['mcs.cloudflare_botnet.asn']['etykieta'] = 'ASN (puste = z konta CF, potem ASN globalny)';
         $h = $http('Cloudflare Botnet', 60, 10);
         $d['mcs.cloudflare_botnet.httpTimeout']        = $h['timeout'];
         $d['mcs.cloudflare_botnet.httpConnectTimeout'] = $h['connect'];

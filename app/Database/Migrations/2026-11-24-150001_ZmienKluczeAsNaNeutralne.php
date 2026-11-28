@@ -25,9 +25,23 @@ class ZmienKluczeAsNaNeutralne extends Migration
 
     public function down()
     {
-        $this->przenies('as_cidry', 'as198050_cidry');
-        foreach (self::ZMIANY as $stary => $nowy) {
-            $this->przenies($nowy, $stary);
+        $this->db->transStart();
+        foreach (['as198050_cidry' => 'as_cidry'] + self::ZMIANY as $stary => $nowy) {
+            $tabela = $this->db->table('mcs_ustawienia');
+            $wiersz = $tabela->where('klucz', $nowy)->get()->getRowArray();
+            if ($wiersz === null) {
+                continue;
+            }
+
+            $wiersz['klucz'] = $stary;
+            $tabela->upsert($wiersz);
+            // Zachowaj jawną listę także dla ponownej aktualizacji z alternatywnym ASN.
+            if ($nowy !== 'as_cidry') {
+                $tabela->where('klucz', $nowy)->delete();
+            }
+        }
+        if (! $this->db->transComplete()) {
+            throw new \RuntimeException('Nie udało się przywrócić starszych kluczy AS.');
         }
     }
 

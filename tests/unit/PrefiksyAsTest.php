@@ -82,6 +82,51 @@ final class PrefiksyAsTest extends CIUnitTestCase
         }
     }
 
+    public function testAsnPluginowZPrzykladowymEnv(): void
+    {
+        $_ENV['mcs.as.asn'] = '64512';
+        $env = file_get_contents(ROOTPATH . '.env.example');
+        $client = $this->createMock(\McsPluginy\cloudflare_botnet\ApiClient::class);
+        $client->expects($this->never())->method('listRegisteredAsns');
+        $pluginy = [
+            'spoofer' => new \McsPluginy\spoofer\Plugin(),
+            'cloudflare_botnet' => new \McsPluginy\cloudflare_botnet\Plugin(apiClient: $client),
+        ];
+        foreach ($pluginy as $nazwa => $plugin) {
+            $klucz = 'mcs.' . $nazwa . '.asn';
+            $this->assertSame(1, preg_match("/^" . preg_quote($klucz, '/') . " = '([^']*)'$/m", $env, $m));
+            $_ENV[$klucz] = $m[1];
+            $this->assertSame(64512, $plugin->resolveAsn());
+            $_ENV[$klucz] = '64513';
+            $this->assertSame(64513, $plugin->resolveAsn());
+        }
+    }
+
+    public function testCofniecieMigracjiPrzywracaAktualneUstawienia(): void
+    {
+        $tabela = new CreateMcsUstawienia();
+        $tabela->up();
+        try {
+            $model = new UstawieniaModel();
+            $migracja = new ZmienKluczeAsNaNeutralne();
+            $model->ustaw('as198050_cidry', '192.0.2.0/24');
+            $model->ustaw('mcs.as198050.asn', '198050');
+            $model->ustaw('mcs.as.asn', '64512');
+            $migracja->up();
+            $model->ustaw('as_cidry', '198.51.100.0/24');
+            $migracja->down();
+            $this->assertSame('198.51.100.0/24', $model->pobierz('as198050_cidry'));
+            $this->assertSame('64512', $model->pobierz('mcs.as198050.asn'));
+            $migracja->up();
+            $this->assertSame('198.51.100.0/24', $model->pobierz('as_cidry'));
+            $model->ustaw('as_cidry', '');
+            $migracja->down();
+            $this->assertSame('', $model->pobierz('as198050_cidry'));
+        } finally {
+            $tabela->down();
+        }
+    }
+
     public function testPrzywrocenieAs198050(): void
     {
         $_ENV['mcs.as.asn'] = '198050';
