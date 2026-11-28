@@ -11,13 +11,13 @@ use CodeIgniter\Database\Migration;
 class ZmienKluczeAsNaNeutralne extends Migration
 {
     private const ZMIANY = [
-        'as198050_cidry'    => 'as_cidry',
         'as198050_wlaczone' => 'as_wlaczone',
         'mcs.as198050.asn'  => 'mcs.as.asn',
     ];
 
     public function up()
     {
+        // Dawna lista CIDR pozostaje przypisana do AS198050.
         foreach (self::ZMIANY as $stary => $nowy) {
             $this->przenies($stary, $nowy);
         }
@@ -25,6 +25,7 @@ class ZmienKluczeAsNaNeutralne extends Migration
 
     public function down()
     {
+        $this->przenies('as_cidry', 'as198050_cidry');
         foreach (self::ZMIANY as $stary => $nowy) {
             $this->przenies($nowy, $stary);
         }

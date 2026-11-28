@@ -46,6 +46,8 @@ final class UstawieniaViewTest extends CIUnitTestCase
             'revDnsWlaczone'  => true,
         ]);
 
+        $this->assertStringContainsString('Brak domyślnych prefiksów dla AS' . AsMatcher::DOMYSLNY_ASN, $html);
+        $this->assertStringNotContainsString('ustawienia/przywroc-domyslne', $html);
         $this->assertMatchesRegularExpression(
             '/name="pokazuj_rev_dns"[^>]*checked|checked[^>]*name="pokazuj_rev_dns"/',
             $html,
